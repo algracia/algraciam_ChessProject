@@ -10,12 +10,24 @@
 
 #include <stdint.h>
 
-#if !defined(__SOFT_FP__) && defined(__ARM_FP)
-  #warning "FPU is not initialized, but the project is compiling for an FPU. Please initialize the FPU before use."
-#endif
+char var1=0;
+int var2 =0;
+short var3 =0;
+long var4 =0;
 
-int main(void) {
-	/* Loop forever */
-	for (;;)
-		;
+uint8_t var5 =0;
+int8_t var6 =0;
+int16_t var7=0;
+int64_t var9 =0;
+
+int main(void)
+{
+	uint16_t testShift = 0b0000110101100110;
+	uint16_t testMask = 0b0000000000110101;
+    /* Loop forever */
+	while(1){
+		testMask <<= 3;
+
+	}
+	return 0;
 }
