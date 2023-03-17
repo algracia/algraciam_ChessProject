@@ -47,6 +47,19 @@ uint32_t GPIO_ReadPin(GPIO_Handler_t*pPinHandler){
 }
 
 C. se hizo la respectiva prueba en el debugger y el resultado dio correcto.
+
+
+2R/
+La funcion GPIOxTooglePin se ecuentra en el archivo GPIOxDriver.c
+esta basicamente usa una mascara y un XOR para reescribir el ODR.
+
+Esta funcion cambia el estado del pin gracias a que el XOR
+toma el valor en el que este el PIN(sea 0 o 1 ) y lo compara
+con el valor que este en la mascara ( un 1 en la posicion del
+bit a modificar y un cero en las demas posiciones) y como esta
+operacion logica solo da 1 cuando ambas entradas son mutuamente
+excluyentes, si hay un 0 en el bit del pin claramente saldra
+un 1 y si hay un 1 en el bit claramente saldra un cero.
  ******************************************************************************
  */
 
@@ -148,7 +161,8 @@ int main(void) {
 	GPIO_Config(&handlerPA7);
 	GPIO_Config(&handlerPC13);
 
-	//definimos unas variables que sea el valor de cada bit (0 o 1)
+	//definimos unas variables que sean el valor de cada bit (0 o 1)
+	//con los que voy a representar los numeros decimales
 	uint8_t valueBit0 = 0;
 	uint8_t valueBit1 = 0;
 	uint8_t valueBit2 = 0;
@@ -159,24 +173,27 @@ int main(void) {
 
 	uint8_t valorPinUserButton = 0;
 	uint8_t i =1;
-	uint8_t x =1;
+	uint32_t x =0;
 
 	while (1) {
 
 		/*Voy a hacer un swicht case que discrimine el caso
-		 en el que el boton este presionado (0) o no (1)
+		 en el que el boton este presionado (case 0) o no (case 1)
 		 */
 
-		valorPinUserButton = GPIO_ReadPin(&handlerPC13);
+		valorPinUserButton = GPIO_ReadPin(&handlerPC13); //reviso si el boton esta presionado
 
 		switch(valorPinUserButton){
 			case 1:{
+				//hago un while infinito para que el conteo se mantenga
+				while(1){
 
-				while(valorPinUserButton == 1){
-
+					//reviso si el contador llego a 60, para que empiece
+					//en 1 nuevamente
 					if(i>60){ i=1;}
 
-					//defino estas variables porque nose si le parece adecuado meter una funcion dentro de otra
+					//defino estas variables para ser mas organizado
+					//y claro con el uso de la funcion 'binaryControl'
 					valueBit0 = binaryControl(i,0);
 					valueBit1 = binaryControl(i,1);
 					valueBit2 = binaryControl(i,2);
@@ -193,18 +210,42 @@ int main(void) {
 					GPIO_WritePin(&handlerPC6, valueBit5);
 					GPIO_WritePin(&handlerPC9, valueBit6);
 
-					valorPinUserButton = GPIO_ReadPin(&handlerPC13);
 					i++;
 
-					for(x=1; x <= 16000000; x++){
+					//reviso nuevamente si el boton esta presionado o no
+					valorPinUserButton = GPIO_ReadPin(&handlerPC13);
+
+					/*en caso de NOestar presionado, luego de la ultima iteracion,
+					que se salga del while y de paso, tambien del switch case
+					para que este ultimo vuelva a ejecutarse y se llegue al caso
+					correspondiente */
+					if(valorPinUserButton == 0){
+						break;
+					}
+
+					//hago un ciclo con 1600000 iteraciones para que el tiempo que tarde
+					//en realizarlas, demore aproximadamente un segundo
+					for(x=1; x<=1600000; x++){
 						continue;}
 				}
 				break;
 			}
 
 			case 0:{
-				while(valorPinUserButton == 0){
+				//hago un while infinito para que el conteo se mantenga
+				while(1){
+
+					/* decremento al principio, de modo que si se salio del case 1,
+					 el conteo hacia atras se de desde el ultimo numero decimal
+					 ingresado ya que, por ejemplo, si presiono el boton en el numero 5,
+					 una vez se salga del case 1 'i' valdra 6 y me interesa contar hacia
+					  atras es desde el 5.
+					 */
 					i--;
+
+					/*aqui reviso si el numero decimal bajo de 1 para asi volver a iniciar
+					el conteo hacia atras desde el 60*/
+
 					if(i<1){i=60;}
 
 					valueBit0 = binaryControl(i,0);
@@ -223,9 +264,18 @@ int main(void) {
 					GPIO_WritePin(&handlerPC6, valueBit5);
 					GPIO_WritePin(&handlerPC9, valueBit6);
 
+					//reviso nuevamente si el boton esta presionado o no
 					valorPinUserButton = GPIO_ReadPin(&handlerPC13);
 
-					for(x=1; x <= 16000000; x++){
+					/*en caso de NOestar presionado, luego de la ultima iteracion,
+					 que se salga del while y de paso, tambien del switch case
+				     para que este ultimo vuelva a ejecutarse y se llegue al caso
+				     correspondiente */
+					if(valorPinUserButton == 1){
+						break;
+					}
+
+					for(x=1; x<= 1600000; x++){
 						continue;}
 				}
 				break;
