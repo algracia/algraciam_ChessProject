@@ -22,6 +22,7 @@ EXTI_Config_t handlerEXTI			={0};
 
 uint8_t ExtiCounter=0;
 
+
 void initHardware (void);
 
 int main(void) {
@@ -39,6 +40,7 @@ void BasicTimerX_Callback(void){
 }
 
 void initHardware (void){
+
 	 //En esta funcion se configura el hardware del LED y el Timer
 	//Deseamos trabajar con el puerto GPIOA
 		handlerOnBoardLed.pGPIOx 								= GPIOA;
@@ -65,6 +67,7 @@ void initHardware (void){
 
 		//Cargamos la configuracion del EXTI
 		ExtInt_Config(&handlerEXTI);
+
 
 		/* Configuracion del TIMER */
 		handlerTimer.ptrTIMx									=TIM2;
