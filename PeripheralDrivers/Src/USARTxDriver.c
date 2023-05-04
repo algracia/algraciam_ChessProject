@@ -13,6 +13,8 @@
  * Recordar que siempre se debe comenzar con activar la señal de reloj
  * del periferico que se está utilizando.
  */
+uint8_t auxRxData = '\0';
+
 void USART_Config(USART_Handler_t *ptrUsartHandler){
 	/* 1. Activamos la señal de reloj que viene desde el BUS al que pertenece el periferico */
 	/* Lo debemos hacer para cada uno de las posibles opciones que tengamos (USART1, USART2, USART6) */
@@ -64,11 +66,11 @@ void USART_Config(USART_Handler_t *ptrUsartHandler){
 	}
 
 	// 2.3 Configuramos el tamaño del dato
-	if(ptrUsartHandler->USART_Config.USART_datasize = USART_DATASIZE_8BIT){
+	if(ptrUsartHandler->USART_Config.USART_datasize == USART_DATASIZE_8BIT){
 		//El dato tiene 8 bits
 		ptrUsartHandler->ptrUSARTx->CR1 &=~USART_CR1_M;
 
-	}else if(ptrUsartHandler->USART_Config.USART_datasize = USART_DATASIZE_9BIT){
+	}else if(ptrUsartHandler->USART_Config.USART_datasize == USART_DATASIZE_9BIT){
 		//El dato tiene 9 bits
 		ptrUsartHandler->ptrUSARTx->CR1 |= USART_CR1_M;
 	}
@@ -183,7 +185,7 @@ void USART_Config(USART_Handler_t *ptrUsartHandler){
 	}
 
 	//Segundo, si la interrupcion sera por TX
-	if(ptrUsartHandler->USART_Config.USART_enableIntRX == USART_TX_INTERRUP_ENABLE){
+	if(ptrUsartHandler->USART_Config.USART_enableIntTX == USART_TX_INTERRUP_ENABLE){
 		ptrUsartHandler->ptrUSARTx->CR1 |= USART_CR1_TXEIE;
 
 	}else{
@@ -238,9 +240,9 @@ void writeMsg(USART_Handler_t *ptrUsartHandler, char *MsgToSend ){
 		__NOP();
 	}
 	uint8_t i =0;
-
 	while(MsgToSend[i] != '\0'){
-	ptrUsartHandler->ptrUSARTx->DR = MsgToSend[i];
+	//ptrUsartHandler->ptrUSARTx->DR = MsgToSend[i];
+	writeChar(ptrUsartHandler, MsgToSend[i]);
 	i++;
 	}
 

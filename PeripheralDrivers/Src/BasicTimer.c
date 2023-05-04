@@ -72,7 +72,7 @@ void BasicTimer_Config(BasicTimer_Handler_t *ptrBTimerHandler){
 		ptrBTimerHandler->ptrTIMx->CR1 &= ~TIM_CR1_DIR;
 
 		/* 3b. Configuramos el Auto-reload. Este es el "limite" hasta donde el CNT va a contar */
-		ptrBTimerHandler->ptrTIMx->ARR = ptrBTimerHandler->TIMx_Config.TIMx_period - 1;
+		ptrBTimerHandler->ptrTIMx->ARR = ptrBTimerHandler->TIMx_Config.TIMx_period - 1 ;
 
 		/* 3c. Reiniciamos el registro counter*/
 		ptrBTimerHandler->ptrTIMx->CNT = 0;
