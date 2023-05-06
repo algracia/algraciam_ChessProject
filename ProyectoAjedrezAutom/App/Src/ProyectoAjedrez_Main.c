@@ -27,6 +27,8 @@ GPIO_Handler_t handlerDireccM1				={0};
 GPIO_Handler_t handlerDireccM2				={0};
 GPIO_Handler_t handlerSeñalServo			={0};
 GPIO_Handler_t handlerUserButton			={0};
+GPIO_Handler_t handlerPinTX					={0};
+GPIO_Handler_t handlerPinRX					={0};
 
 BasicTimer_Handler_t handlerTimerBlinky 	={0};
 
@@ -34,12 +36,16 @@ PWM_Handler_t handlerPwmM1					={0};
 PWM_Handler_t handlerPwmM2					={0};
 PWM_Handler_t handlerPwmServo				={0};
 
+USART_Handler_t handlerUSART2				={0};
+
 EXTI_Config_t handlerEXTIUserButton			={0};
 
 
 /*Variables*/
-uint8_t extiCount =0;
-uint16_t pulseWidth = 10;
+uint16_t pulseWidth 		=10;
+uint8_t USARTDataRecieved 	=0;
+char direccion[]			={0};
+char bufferMsg[64] 			={0};
 
 /*Headers de funciones*/
 void InitHardware (void);
@@ -54,14 +60,93 @@ int main(void) {
 	/* Loop forever*/
 	while (1) {
 
+		if(USARTDataRecieved != '\0'){
 
+			switch(USARTDataRecieved){
+
+			case 'w': {
+
+				sprintf(bufferMsg,"\nLa direccion es: %s", "Arriba");
+
+				GPIO_WritePin(&handlerDireccM1, 0); //CW
+				GPIO_WritePin(&handlerDireccM2, 1); //CCW
+
+				enableOutput(&handlerPwmM1);
+				enableOutput(&handlerPwmM2);
+
+				break;
+			}
+
+			case 's': {
+
+				sprintf(bufferMsg,"\nLa direccion es: %s", "Abajo");
+
+				GPIO_WritePin(&handlerDireccM1, 1); //CCW
+				GPIO_WritePin(&handlerDireccM2, 0); //CW
+
+				enableOutput(&handlerPwmM1);
+				enableOutput(&handlerPwmM2);
+
+				break;
+			}
+
+			case 'd': {
+
+				sprintf(bufferMsg,"\nLa direccion es: %s", "Derecha");
+
+				GPIO_WritePin(&handlerDireccM1, 0); //CW
+				GPIO_WritePin(&handlerDireccM2, 0); //CW
+
+				enableOutput(&handlerPwmM1);
+				enableOutput(&handlerPwmM2);
+
+				break;
+			}
+
+
+			case 'a': {
+
+				sprintf(bufferMsg,"\nLa direccion es: %s", "Izquierda");
+
+				GPIO_WritePin(&handlerDireccM1, 1); //CCW
+				GPIO_WritePin(&handlerDireccM2, 1); //CCW
+
+				enableOutput(&handlerPwmM1);
+				enableOutput(&handlerPwmM2);
+
+				break;
+			}
+
+			case ' ': {
+
+				sprintf(bufferMsg,"\n%s", "STOP");
+
+				disableOutput(&handlerPwmM1);
+				disableOutput(&handlerPwmM2);
+
+				break;
+			}
+
+			default:{
+				disableOutput(&handlerPwmM1);
+				disableOutput(&handlerPwmM2);
+
+				break;
+			}
+			}//Fin del Switch
+
+			writeMsg(&handlerUSART2, bufferMsg);
+
+			USARTDataRecieved = '\0';
+
+		}//Fin del 'if'
 	}
 }
 
 void InitHardware (void){
 	/*Configuramos el Blinky*/
-	handlerOnBoardLed.pGPIOx 								= GPIOA;
-	handlerOnBoardLed.GPIO_PinConfig.GPIO_PinNumber			= PIN_5;
+	handlerOnBoardLed.pGPIOx 								= GPIOB;
+	handlerOnBoardLed.GPIO_PinConfig.GPIO_PinNumber			= PIN_10;
 	handlerOnBoardLed.GPIO_PinConfig.GPIO_PinMode			= GPIO_MODE_OUT;
 	handlerOnBoardLed.GPIO_PinConfig.GPIO_PinOPType			= GPIO_OTYPE_PUSHPULL;
 	handlerOnBoardLed.GPIO_PinConfig.GPIO_PinPuPdControl	= GPIO_PUPDR_NOTHING;
@@ -141,7 +226,7 @@ void InitHardware (void){
 
 	/*Configuramos la señal del Servomotor*/
 	handlerSeñalServo.pGPIOx 								= GPIOB;
-	handlerSeñalServo.GPIO_PinConfig.GPIO_PinNumber			= PIN_6;
+	handlerSeñalServo.GPIO_PinConfig.GPIO_PinNumber			= PIN_9;
 	handlerSeñalServo.GPIO_PinConfig.GPIO_PinMode			= GPIO_MODE_ALTFN;
 	handlerSeñalServo.GPIO_PinConfig.GPIO_PinOPType			= GPIO_OTYPE_PUSHPULL;
 	handlerSeñalServo.GPIO_PinConfig.GPIO_PinPuPdControl	= GPIO_PUPDR_NOTHING;
@@ -152,8 +237,8 @@ void InitHardware (void){
 
 	//PWM del Servo
 	handlerPwmServo.ptrTIMx					=TIM4;
-	handlerPwmServo.config.channel 			=PWM_CHANNEL_1;
-	handlerPwmServo.config.polarity 		=PWM_POLARITY_ACTIVE_HIGH;
+	handlerPwmServo.config.channel 			=PWM_CHANNEL_4;
+	handlerPwmServo.config.polarity 		=PWM_POLARITY_ACTIVE_LOW;
 	handlerPwmServo.config.prescaler 		=PWM_PRESCALER_100us;
 	handlerPwmServo.config.periodo 			=200; //Equivale a un periodo de 20ms
 	handlerPwmServo.config.pulseWidth 		=pulseWidth;
@@ -164,24 +249,36 @@ void InitHardware (void){
 	//Activamos la señal
 	startPwmSignal(&handlerPwmServo);
 
-	/*Configuramos el UserButton*/
-	handlerUserButton.pGPIOx								= GPIOC;
-	handlerUserButton.GPIO_PinConfig.GPIO_PinNumber			= PIN_13;
-	handlerUserButton.GPIO_PinConfig.GPIO_PinMode			= GPIO_MODE_IN;
-	handlerUserButton.GPIO_PinConfig.GPIO_PinPuPdControl	= GPIO_PUPDR_NOTHING;
 
-	GPIO_Config(&handlerSeñalServo);
+	/*Configuramos la comunicacion serial*/
+	//Configuramos pines para la comunicacion serial
+	handlerPinTX.pGPIOx 								= GPIOA;
+	handlerPinTX.GPIO_PinConfig.GPIO_PinNumber 			= PIN_2;
+	handlerPinTX.GPIO_PinConfig.GPIO_PinMode 			= GPIO_MODE_ALTFN;
+	handlerPinTX.GPIO_PinConfig.GPIO_PinAltFunMode 		= AF7;
 
-	//Configuracion del EXTI del UserButton
-	handlerEXTIUserButton.pGPIOHandler					=&handlerUserButton;
-	handlerEXTIUserButton.edgeType						=EXTERNAL_INTERRUPT_FALLING_EDGE;
+	handlerPinRX.pGPIOx 								= GPIOA;
+	handlerPinRX.GPIO_PinConfig.GPIO_PinNumber 			= PIN_3;
+	handlerPinRX.GPIO_PinConfig.GPIO_PinMode 			= GPIO_MODE_ALTFN;
+	handlerPinRX.GPIO_PinConfig.GPIO_PinAltFunMode 		= AF7;
 
-	//Cargamos la configuracion del EXTI
-	ExtInt_Config(&handlerEXTIUserButton);
+	//Cargamos las configuraciones
+	GPIO_Config(&handlerPinTX);
+	GPIO_Config(&handlerPinRX);
 
+	//Configuramos el USART
+	handlerUSART2.ptrUSARTx 						= USART2;
+	handlerUSART2.USART_Config.USART_baudrate 		= USART_BAUDRATE_115200;
+	handlerUSART2.USART_Config.USART_datasize 		= USART_DATASIZE_8BIT;
+	handlerUSART2.USART_Config.USART_mode			= USART_MODE_RXTX;
+	handlerUSART2.USART_Config.USART_parity 		= USART_PARITY_NONE;
+	handlerUSART2.USART_Config.USART_stopbits 		= USART_STOPBIT_1;
+	handlerUSART2.USART_Config.USART_enableIntRX 	= USART_RX_INTERRUP_ENABLE;
+	handlerUSART2.USART_Config.USART_enableIntTX 	= USART_TX_INTERRUP_DISABLE;
 
-
+	USART_Config(&handlerUSART2);
 }
+
 
 
 /*Callbacks Timers*/
@@ -190,9 +287,10 @@ void BasicTimer2_Callback(void){
 
 }
 
-
-/*Callback EXTI*/
-void callback_extInt13(void){
-	extiCount = 1;
+void usart2Rx_Callback(void){
+	//Cada que se lanze la interrupcion, recibimos datos
+	USARTDataRecieved =getRxData();
 }
+
+
 

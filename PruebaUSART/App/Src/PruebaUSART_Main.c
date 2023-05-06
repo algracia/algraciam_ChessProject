@@ -37,14 +37,9 @@ int main(void) {
 
 	/* Loop forever*/
 	while (1) {
+
 		if(USARTDataRecieved != '\0'){
-			bufferMsg[i] = USARTDataRecieved;
-			i++;
-			USARTDataRecieved = '\0';
-			if(i ==4){
-				bufferMsg[i] ='\0';
-				writeMsg(&handlerUSART2, bufferMsg);
-				i=0;
+
 
 			}
 

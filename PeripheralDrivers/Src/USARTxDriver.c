@@ -241,7 +241,6 @@ void writeMsg(USART_Handler_t *ptrUsartHandler, char *MsgToSend ){
 	}
 	uint8_t i =0;
 	while(MsgToSend[i] != '\0'){
-	//ptrUsartHandler->ptrUSARTx->DR = MsgToSend[i];
 	writeChar(ptrUsartHandler, MsgToSend[i]);
 	i++;
 	}
