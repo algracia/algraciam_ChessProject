@@ -26,6 +26,11 @@
 #define PWM_POLARITY_ACTIVE_HIGH	0
 #define PWM_POLARITY_ACTIVE_LOW		1
 
+#define PWM_ALL_INTERRUPT_DISABLE				0
+#define PWM_PERIOD_INTERRUPT_ENABLE				1
+//#define PWM_PULSEWIDTH_INTERRUPT_ENABLE			2
+
+
 /**/
 typedef struct
 {
@@ -34,6 +39,8 @@ typedef struct
 	uint16_t	periodo;		// Indica el número de veces que el Timer se incrementa, el periodo de la frecuencia viene dado por Time_Fosc * PSC * ARR
 	uint16_t	pulseWidth;		// Valor en porcentaje (%) del tiempo que la señal está en alto
 	uint8_t 	polarity;		//Indica si se quiere que la señal sera Active High o Active Low
+	uint8_t 	interruption;	//Indica si se van a usar o no interrupciones y el tipo.
+
 }PWM_Config_t;
 
 /**/
@@ -55,4 +62,11 @@ void startPwmSignal(PWM_Handler_t *ptrPwmHandler);
 void stopPwmSignal(PWM_Handler_t *ptrPwmHandler);
 void setPolarity(PWM_Handler_t *ptrPwmHandler);
 
+////Callbacks
+//void PWMTimer2_Period_Callback(void); /* Esta función debe ser sobre-escrita en el main para que el sistema funcione*/
+//void PWMTimer3_Period_Callback(void);
+//void PWMTimer4_Period_Callback(void);
+//void PWMTimer5_Period_Callback(void);
+
 #endif /* PWMDRIVER_H_ */
+

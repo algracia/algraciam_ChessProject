@@ -157,8 +157,135 @@ void pwm_Config(PWM_Handler_t *ptrPwmHandler){
 	/*7. Configuramos la polaridad del PWM*/
 	setPolarity(ptrPwmHandler);
 
+	/*8. Configuramos en caso tal las interrupciones*/
+	//8.1 deshabilitamos las interrupciones globales
+	__disable_irq();
+
+	//8.2 Reseteamos el DIER por si las moscas
+	ptrPwmHandler->ptrTIMx->DIER &= 0;
+
+	//8.3 Revisamos si van a haber o no interrupciones y de que tipo
+	//Realmente, en este caso solo vamos a configurar las dadas por el periodo
+	switch(ptrPwmHandler->config.interruption){
+
+	//Si las interrupciones son solo por el ARR (periodo de la señal)
+	case PWM_PERIOD_INTERRUPT_ENABLE:{
+		ptrPwmHandler->ptrTIMx->DIER |= TIM_DIER_UIE;
+
+		break;
+	}
+
+	//Si las interrupciones estan deshabilitadas
+	case PWM_ALL_INTERRUPT_DISABLE: {
+		ptrPwmHandler->ptrTIMx->DIER &= ~TIM_DIER_UIE;
+
+		break;
+	}
+
+	default: {
+		__NOP();
+	}
+	}//Fin del switch case
+
+	/*8.4 Activamos el canal del sistema NVIC para que lea la interrupción*/
+	if(ptrPwmHandler->ptrTIMx == TIM2){
+		// Activando en NVIC para la interrupción del TIM2
+		NVIC_EnableIRQ(TIM2_IRQn);
+	}
+	else if(ptrPwmHandler->ptrTIMx == TIM3){
+		// Activando en NVIC para la interrupción del TIM3
+		NVIC_EnableIRQ(TIM3_IRQn);
+	}
+	else if(ptrPwmHandler->ptrTIMx == TIM4){
+		// Activando en NVIC para la interrupción del TIM4
+		NVIC_EnableIRQ(TIM4_IRQn);
+			}
+	else if(ptrPwmHandler->ptrTIMx == TIM5){
+		// Activando en NVIC para la interrupción del TIM5
+		NVIC_EnableIRQ(TIM5_IRQn);
+			}
+	else{
+		__NOP();
+	}
+
+	/* 8.5. Volvemos a activar las interrupciones del sistema */
+	__enable_irq();
+
 }// Fin de la funcion pwmConfig
 
+/*Colocamos los callback*/
+//Estos son los asociados a la interrupcion por el periodo
+//__attribute__((weak)) void PWMTimer2_Period_Callback(void){
+//	  /* NOTE : This function should not be modified, when the callback is needed,
+//	            the BasicTimerX_Callback could be implemented in the main file
+//	   */
+//	__NOP();
+//}
+//
+//__attribute__((weak)) void PWMTimer3_Period_Callback(void){
+//	  /* NOTE : This function should not be modified, when the callback is needed,
+//	            the BasicTimerX_Callback could be implemented in the main file
+//	   */
+//	__NOP();
+//}
+//
+//__attribute__((weak)) void PWMTimer4_Period_Callback(void){
+//	  /* NOTE : This function should not be modified, when the callback is needed,
+//	            the BasicTimerX_Callback could be implemented in the main file
+//	   */
+//	__NOP();
+//}
+//
+//__attribute__((weak)) void PWMTimer5_Period_Callback(void){
+//	  /* NOTE : This function should not be modified, when the callback is needed,
+//	            the BasicTimerX_Callback could be implemented in the main file
+//	   */
+//	__NOP();
+//}
+//
+//
+///* Esta es la función a la que apunta el sistema en el vector de interrupciones.
+// * Se debe utilizar usando exactamente el mismo nombre definido en el vector de interrupciones,
+// * Al hacerlo correctamente, el sistema apunta a esta función y cuando la interrupción se lanza
+// * el sistema inmediatamente salta a este lugar en la memoria*/
+//void TIM2_IRQHandler(void){
+//	/* Limpiamos la bandera que indica que la interrupción se ha generado */
+//	TIM2->SR &= ~TIM_SR_UIF;
+//
+//	/* LLamamos a la función que se debe encargar de hacer algo con esta interrupción*/
+//	PWMTimer2_Period_Callback();
+//
+//}
+//
+//void TIM3_IRQHandler(void){
+//	/* Limpiamos la bandera que indica que la interrupción se ha generado */
+//	TIM3->SR &= ~TIM_SR_UIF;
+//
+//	/* LLamamos a la función que se debe encargar de hacer algo con esta interrupción*/
+//	PWMTimer3_Period_Callback();
+//
+//}
+//
+//void TIM4_IRQHandler(void){
+//	/* Limpiamos la bandera que indica que la interrupción se ha generado */
+//	TIM4->SR &= ~TIM_SR_UIF;
+//
+//	/* LLamamos a la función que se debe encargar de hacer algo con esta interrupción*/
+//	PWMTimer4_Period_Callback();
+//
+//}
+//
+//void TIM5_IRQHandler(void){
+//	/* Limpiamos la bandera que indica que la interrupción se ha generado */
+//	TIM5->SR &= ~TIM_SR_UIF;
+//
+//	/* LLamamos a la función que se debe encargar de hacer algo con esta interrupción*/
+//	PWMTimer5_Period_Callback();
+//
+//}
+
+///////////////////////////////////////////////////////////////////////////////////////////
+/*Demas funciones*/
 
 /* Función para activar el Timer y activar todo el módulo PWM */
 void startPwmSignal(PWM_Handler_t *ptrPwmHandler) {

@@ -86,7 +86,6 @@ typedef struct{
 	uint8_t GPIO_PinPuPdControl;	//Seleccionamos si deseamos una salida Pull-up, Pull-down o "Libre"
 	uint8_t GPIO_PinOPType;			//Trabaja de la mano con el anterior, selecciona la salida PUPD o OpenDrain
 	uint8_t GPIO_PinAltFunMode;		//Selecciona cual es la funcion alternativa que se esta configurando
-
 }GPIO_PinConfig_t;
 
 /* Esta es una estructura que contiene dos elementos:

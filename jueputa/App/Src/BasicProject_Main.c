@@ -276,7 +276,7 @@ void InitHardware (void){
 	handlerPwmServo.config.prescaler 		=PWM_PRESCALER_100us;
 	handlerPwmServo.config.periodo 			=200; //Equivale a un periodo de 20ms
 	handlerPwmServo.config.pulseWidth 		=pulseWidth;
-	handlerPwmServo.config.
+	handlerPwmServo.config.interruption;
 
 	//Cargamos la configuracion
 	pwm_Config(&handlerPwmServo);
@@ -331,6 +331,11 @@ void usart2Rx_Callback(void){
 	//Cada que se lanze la interrupcion, recibimos datos
 	USARTDataRecieved =getRxData();
 }
+
+
+
+
+
 
 
 
