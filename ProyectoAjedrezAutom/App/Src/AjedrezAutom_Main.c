@@ -18,6 +18,9 @@
 #include "SysTickDriver.h"
 #include "PwmDriver.h"
 
+/*Macros utiles*/
+#define SERVO_UP 	16
+#define SERVO_DOWN 	14
 
 /*Configuramos los handlers*/
 GPIO_Handler_t handlerOnBoardLed 			={0};
@@ -29,6 +32,9 @@ GPIO_Handler_t handlerSeñalServo			={0};
 GPIO_Handler_t handlerUserButton			={0};
 GPIO_Handler_t handlerPinTX					={0};
 GPIO_Handler_t handlerPinRX					={0};
+
+GPIO_Handler_t handlerPrueba1		={0};
+GPIO_Handler_t handlerPrueba2		={0};
 
 BasicTimer_Handler_t handlerTimerBlinky 	={0};
 
@@ -42,11 +48,13 @@ EXTI_Config_t handlerEXTIUserButton			={0};
 
 
 /*Variables*/
-uint16_t pulseWidth 		=15;
-uint8_t USARTDataRecieved 	=0;
-char direccion[]			={0};
-char bufferMsg[64] 			={0};
-uint8_t variable =0;
+uint8_t USARTDataRecieved 		=0;
+char direccion[]				={0};
+char bufferMsg[64] 				={0};
+uint16_t pasosMotores 			=100;
+uint16_t pasosServo 			=35;
+uint16_t contadorPasosMotores	=0;
+uint16_t contadorPasosServo		=0;
 
 /*Headers de funciones*/
 void InitHardware (void);
@@ -69,11 +77,13 @@ int main(void) {
 
 				sprintf(bufferMsg,"\nLa direccion es: %s", "Arriba");
 
-				GPIO_WritePin(&handlerDireccM1, 0); //CW
-				GPIO_WritePin(&handlerDireccM2, 1); //CCW
+				GPIO_WritePin(&handlerDireccM1, 0); //CCW
+				GPIO_WritePin(&handlerDireccM2, 1); //CW
 
 				enableOutput(&handlerPwmM1);
 				enableOutput(&handlerPwmM2);
+
+				contadorPasosMotores =0;
 
 				break;
 			}
@@ -82,11 +92,13 @@ int main(void) {
 
 				sprintf(bufferMsg,"\nLa direccion es: %s", "Abajo");
 
-				GPIO_WritePin(&handlerDireccM1, 1); //CCW
-				GPIO_WritePin(&handlerDireccM2, 0); //CW
+				GPIO_WritePin(&handlerDireccM1, 1); //CW
+				GPIO_WritePin(&handlerDireccM2, 0); //CCW
 
 				enableOutput(&handlerPwmM1);
 				enableOutput(&handlerPwmM2);
+
+				contadorPasosMotores =0;
 
 				break;
 			}
@@ -95,11 +107,13 @@ int main(void) {
 
 				sprintf(bufferMsg,"\nLa direccion es: %s", "Derecha");
 
-				GPIO_WritePin(&handlerDireccM1, 0); //CW
-				GPIO_WritePin(&handlerDireccM2, 0); //CW
+				GPIO_WritePin(&handlerDireccM1, 0); //CCW
+				GPIO_WritePin(&handlerDireccM2, 0); //CCW
 
 				enableOutput(&handlerPwmM1);
 				enableOutput(&handlerPwmM2);
+
+				contadorPasosMotores =0;
 
 				break;
 			}
@@ -109,11 +123,69 @@ int main(void) {
 
 				sprintf(bufferMsg,"\nLa direccion es: %s", "Izquierda");
 
-				GPIO_WritePin(&handlerDireccM1, 1); //CCW
-				GPIO_WritePin(&handlerDireccM2, 1); //CCW
+				GPIO_WritePin(&handlerDireccM1, 1); //CW
+				GPIO_WritePin(&handlerDireccM2, 1); //CW
 
 				enableOutput(&handlerPwmM1);
 				enableOutput(&handlerPwmM2);
+
+				contadorPasosMotores =0;
+
+				break;
+			}
+
+			case 'e': {
+
+				sprintf(bufferMsg,"\nLa direccion es: %s", "Diagonal derecha arriba");
+
+				GPIO_WritePin(&handlerDireccM1, 0); //CW
+
+				enableOutput(&handlerPwmM1);
+				disableOutput(&handlerPwmM2);
+
+				contadorPasosMotores =0;
+
+				break;
+			}
+
+			case 'q': {
+
+				sprintf(bufferMsg,"\nLa direccion es: %s", "Diagonal izquierda arriba");
+
+				GPIO_WritePin(&handlerDireccM2, 1); //CCW
+
+				disableOutput(&handlerPwmM1);
+				enableOutput(&handlerPwmM2);
+
+				contadorPasosMotores =0;
+
+				break;
+			}
+
+			case 'E': {
+
+				sprintf(bufferMsg,"\nLa direccion es: %s", "Diagonal derecha abajo");
+
+				GPIO_WritePin(&handlerDireccM1, 1); //CCW
+
+				enableOutput(&handlerPwmM1);
+				disableOutput(&handlerPwmM2);
+
+				contadorPasosMotores =0;
+
+				break;
+			}
+
+			case 'Q': {
+
+				sprintf(bufferMsg,"\nLa direccion es: %s", "Diagonal izquierda abajo");
+
+				GPIO_WritePin(&handlerDireccM2, 0); //CW
+
+				disableOutput(&handlerPwmM1);
+				enableOutput(&handlerPwmM2);
+
+				contadorPasosMotores =0;
 
 				break;
 			}
@@ -126,35 +198,56 @@ int main(void) {
 				disableOutput(&handlerPwmM2);
 				disableOutput(&handlerPwmServo);
 
-				updatePulseWidth(&handlerPwmServo, 15);
-
 				break;
 			}
 
 			/*Probamos el PW para el servo*/
 			//Esto hay que separarlo luego
 			case 'u': {
-				//aumentamos el PW en 1 unidad
-				pulseWidth += 1;
-				updatePulseWidth(&handlerPwmServo, pulseWidth);
+				//Hacemos que el servo suba
+				updatePulseWidth(&handlerPwmServo, SERVO_UP);
 
-				sprintf(bufferMsg,"\nSe aumentó el PW a: %u", pulseWidth);
+				sprintf(bufferMsg,"\nEl servo esta arriba");
 
-				//dejamos que el servo se mueva un momento y luego lo detenemos
+				//Habilitamos el movimiento
 				enableOutput(&handlerPwmServo);
+
+				//Reiniciamos la variable para los pasos
+				contadorPasosServo =0;
 
 				break;
 			}
 
 			case 'o': {
-				//disminuimos el PW en 1 unidad
-				pulseWidth -= 1;
-				updatePulseWidth(&handlerPwmServo, pulseWidth);
+				//Hacemos que el servo baje
+				updatePulseWidth(&handlerPwmServo, SERVO_DOWN);
 
-				sprintf(bufferMsg,"\nSe disminuyó el PW a: %u", pulseWidth);
+				sprintf(bufferMsg,"\nEl servo esta abajo");
 
-				//dejamos que el servo se mueva un momento y luego lo detenemos
+				//Habilitamos el movimiento
 				enableOutput(&handlerPwmServo);
+
+				//Reiniciamos la variable para los pasos
+				contadorPasosServo =0;
+
+				break;
+			}
+
+			/*Ire cambiando el numero de pasos para el servo*/
+			case 't':{
+				//Aumentamos el numero de pasos en 10
+				pasosMotores += 10;
+
+				sprintf(bufferMsg,"\nEl numero de pasos aumentó a: %u",pasosMotores);
+
+				break;
+			}
+
+			case 'y':{
+				//disminuimos el numero de pasos en 10
+				pasosMotores -= 10;
+
+				sprintf(bufferMsg,"\nEl numero de pasos disminuyó a: %u",pasosMotores);
 
 				break;
 			}
@@ -173,6 +266,18 @@ int main(void) {
 			USARTDataRecieved = '\0';
 
 		}//Fin del 'if'
+
+
+		if(contadorPasosMotores > pasosMotores){
+			disableOutput(&handlerPwmM1);
+			disableOutput(&handlerPwmM2);
+
+		}
+
+		if(contadorPasosServo > pasosServo){
+			disableOutput(&handlerPwmServo);
+		}
+
 	}
 }
 
@@ -194,6 +299,23 @@ void InitHardware (void){
 	GPIO_Config(&handlerOnBoardLed);
 	BasicTimer_Config(&handlerTimerBlinky);
 
+//	//Pruebas
+//	handlerPrueba1.pGPIOx 								= GPIOB;
+//	handlerPrueba1.GPIO_PinConfig.GPIO_PinNumber			= PIN_10;
+//	handlerPrueba1.GPIO_PinConfig.GPIO_PinMode			= GPIO_MODE_OUT;
+//	handlerPrueba1.GPIO_PinConfig.GPIO_PinOPType			= GPIO_OTYPE_PUSHPULL;
+//	handlerPrueba1.GPIO_PinConfig.GPIO_PinPuPdControl	= GPIO_PUPDR_NOTHING;
+//	handlerPrueba1.GPIO_PinConfig.GPIO_PinSpeed			= GPIO_OSPEED_FAST;
+//
+//	handlerPrueba2.pGPIOx 								= GPIOA;
+//	handlerPrueba2.GPIO_PinConfig.GPIO_PinNumber			= PIN_8;
+//	handlerPrueba2.GPIO_PinConfig.GPIO_PinMode			= GPIO_MODE_OUT;
+//	handlerPrueba2.GPIO_PinConfig.GPIO_PinOPType			= GPIO_OTYPE_PUSHPULL;
+//	handlerPrueba2.GPIO_PinConfig.GPIO_PinPuPdControl	= GPIO_PUPDR_NOTHING;
+//	handlerPrueba2.GPIO_PinConfig.GPIO_PinSpeed			= GPIO_OSPEED_FAST;
+//
+//	GPIO_Config(&handlerPrueba1);
+//	GPIO_Config(&handlerPrueba2);
 
 	/*Configuramos la Señal de los motores*/
 	handlerSeñalM1.pGPIOx 								= GPIOC;
@@ -215,6 +337,10 @@ void InitHardware (void){
 	GPIO_Config(&handlerSeñalM1);
 	GPIO_Config(&handlerSeñalM2);
 
+	//Iniciamos la señal a un valor conocido
+	GPIO_WritePin(&handlerSeñalM1, 1);
+	GPIO_WritePin(&handlerSeñalM2, 1);
+
 	//PWM de los motores
 	handlerPwmM1.ptrTIMx				=TIM3;
 	handlerPwmM1.config.channel 		=PWM_CHANNEL_2;
@@ -222,6 +348,7 @@ void InitHardware (void){
 	handlerPwmM1.config.prescaler 		=PWM_PRESCALER_100us;
 	handlerPwmM1.config.periodo 		=10; //Equivale a un periodo de 1ms
 	handlerPwmM1.config.pulseWidth 		=5; //Equivale a un PW de 0.5 ms o un DutyCicle de 50%
+	handlerPwmM1.config.interruption	=PWM_PERIOD_INTERRUPT_ENABLE;
 
 	handlerPwmM2.ptrTIMx				=TIM3;
 	handlerPwmM2.config.channel 		=PWM_CHANNEL_1;
@@ -229,6 +356,7 @@ void InitHardware (void){
 	handlerPwmM2.config.prescaler 		=PWM_PRESCALER_100us;
 	handlerPwmM2.config.periodo 		=10; //Equivale a un periodo de 1ms
 	handlerPwmM2.config.pulseWidth 		=5; //Equivale a un PW de 0.5 ms o un DutyCicle de 50%
+	handlerPwmM2.config.interruption	=PWM_PERIOD_INTERRUPT_ENABLE;
 
 
 	//Cargamos las configuraciones
@@ -275,8 +403,8 @@ void InitHardware (void){
 	handlerPwmServo.config.polarity 		=PWM_POLARITY_ACTIVE_LOW;
 	handlerPwmServo.config.prescaler 		=PWM_PRESCALER_100us;
 	handlerPwmServo.config.periodo 			=200; //Equivale a un periodo de 20ms
-	handlerPwmServo.config.pulseWidth 		=pulseWidth;
-	handlerPwmServo.config.interruption;
+	handlerPwmServo.config.pulseWidth 		=15;
+	handlerPwmServo.config.interruption		=PWM_PERIOD_INTERRUPT_ENABLE;
 
 	//Cargamos la configuracion
 	pwm_Config(&handlerPwmServo);
@@ -323,7 +451,12 @@ void BasicTimer2_Callback(void){
 }
 
 void BasicTimer3_Callback(void){
-	GPIOxTooglePin(&handlerOnBoardLed);
+	contadorPasosMotores++;
+
+}
+
+void BasicTimer4_Callback(void){
+	contadorPasosServo++;
 
 }
 
