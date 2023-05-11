@@ -44,8 +44,8 @@ PWM_Handler_t handlerPwmServo				={0};
 
 USART_Handler_t handlerUSART2				={0};
 
-EXTI_Config_t handlerEXTIEndStopX				={0};
-EXTI_Config_t handlerEXTIEndStopY				={0};
+EXTI_Config_t handlerEXTIEndStopX			={0};
+EXTI_Config_t handlerEXTIEndStopY			={0};
 
 
 /*Variables*/
@@ -53,6 +53,8 @@ EXTI_Config_t handlerEXTIEndStopY				={0};
 //Las relacionadas al USART
 uint8_t USARTDataRecieved 		=0;
 char bufferMsg[64] 				={0};
+char recievedMsg[100]			={0};
+uint8_t counter 				=0;
 
 //Las relacionadas a los pasos
 uint16_t pasosMotores 			=500;
@@ -341,6 +343,32 @@ int main(void) {
 				break;
 			}
 
+			/*Creamos una funcion que reciba del USART comandos y los imprima*/
+			case 'r':{
+				sprintf(bufferMsg,"\nPor favor, escriba su comando: ");
+				writeMsg(&handlerUSART2, bufferMsg);
+
+				counter =0;
+				USARTDataRecieved = '\0';
+
+				while(USARTDataRecieved != '#'){
+
+					if(USARTDataRecieved != '\0' && USARTDataRecieved != '#'){
+						recievedMsg[counter] =USARTDataRecieved;
+						counter++;
+						USARTDataRecieved ='\0';
+
+					}
+				}
+
+				recievedMsg[counter] = '\0';
+				sprintf(bufferMsg, "\nTu comando ingresado fue: ");
+				writeMsg(&handlerUSART2, bufferMsg);
+				writeMsg(&handlerUSART2, recievedMsg);
+
+				sprintf(bufferMsg," ");
+				break;
+			}
 			default:{
 
 				sprintf(bufferMsg,"\nIngrese un caracter valido para continuar");
@@ -600,9 +628,9 @@ void Home(void){
 		__NOP();
 	}
 
-	/*Desactivamos el movimiento en X*/
-	disableOutput(&handlerPwmM1);
-	disableOutput(&handlerPwmM2);
+//	/*Desactivamos el movimiento en X*/
+//	disableOutput(&handlerPwmM1);
+//	disableOutput(&handlerPwmM2);
 
 
 	/*Ahora, bajamos la bandera en Y para
@@ -613,8 +641,8 @@ void Home(void){
 	GPIO_WritePin(&handlerDireccM1, 1); //CW
 	GPIO_WritePin(&handlerDireccM2, 0); //CCW
 
-	enableOutput(&handlerPwmM1);
-	enableOutput(&handlerPwmM2);
+//	enableOutput(&handlerPwmM1);
+//	enableOutput(&handlerPwmM2);
 
 	//Mientras no cambie la bandera, el se mantiene en un bucle
 	while(!endStopYFlag){
@@ -652,6 +680,8 @@ void BasicMove (void) {
 	//Inicializamos el contador de pasos
 	contadorPasosMotores =0;
 
+	//Hacemos que se quede en unn bucle hasta que se
+	//complete el numero de pasos
 	while(!(contadorPasosMotores > 385)){
 		__NOP();
 	}
