@@ -19,8 +19,9 @@
 #include "PwmDriver.h"
 
 /*Macros utiles*/
-#define SERVO_ARRIBA 	16
-#define SERVO_ABAJO 	14
+#define SERVO_ARRIBA 	0
+#define SERVO_ABAJO 	1
+#define PASOS_SERVO		40
 #define PASOSxCUADRO 	500
 
 /*Configuramos los handlers*/
@@ -52,16 +53,14 @@ EXTI_Config_t handlerEXTIEndStopY			={0};
 /*Variables*/
 
 //Las relacionadas al USART
-uint8_t USARTDataRecieved 		=0;
+char USARTDataRecieved 			=0;
 char bufferMsg[64] 				={0};
-char recievedMsg[100]			={0};
-uint8_t counter 				=0;
+char recievedMsg[10]			={0};
 
 //Las relacionadas a los pasos
-uint16_t pasosMotores 			=500;
-uint16_t pasosServo 			=40;
 uint16_t contadorPasosMotores	=0;
 uint16_t contadorPasosServo		=0;
+int16_t pasosEnXY[2] 			={0};
 
 //Las banderas
 uint8_t endStopXFlag			=1;
@@ -71,360 +70,24 @@ uint8_t endStopYFlag			=1;
 void InitHardware (void);
 void Home(void);
 void BasicMove (void);
+void ControlServo(uint8_t posicionServo);
 void MovX (int16_t n_pasos);
-void MovX (int16_t n_pasos);
+void MovY (int16_t n_pasos);
 void MovDiagonal(int16_t n_pasosX,int16_t n_pasosY);
+uint16_t PasosxFilaYColumna(char filaColumna);
+void CalculoPasos (char *jugada,uint8_t etapa);
+void recibirInstruccion(void);
 
 int main(void) {
 
 	InitHardware();
-	disableOutput(&handlerPwmM1);
-	disableOutput(&handlerPwmM2);
-	disableOutput(&handlerPwmServo);
 
 	/* Loop forever*/
 	while (1) {
 
 		if(USARTDataRecieved != '\0'){
 
-			switch(USARTDataRecieved){
-
-			case 'w': {
-
-				sprintf(bufferMsg,"\nLa direccion es: %s", "Arriba");
-
-				//Activamos los enable de los drivers
-				GPIO_WritePin(&handlerEnableM1, 1);
-				GPIO_WritePin(&handlerEnableM2, 1);
-
-				//Ajustamos la direccion
-				GPIO_WritePin(&handlerDireccM1, 0); //CCW
-				GPIO_WritePin(&handlerDireccM2, 1); //CW
-
-				//Habilitamos las salidas de los PWM
-				enableOutput(&handlerPwmM1);
-				enableOutput(&handlerPwmM2);
-
-				contadorPasosMotores =0;
-
-				break;
-			}
-
-			case 's': {
-
-				sprintf(bufferMsg,"\nLa direccion es: %s", "Abajo");
-
-				//Activamos los enable de los drivers
-				GPIO_WritePin(&handlerEnableM1, 1);
-				GPIO_WritePin(&handlerEnableM2, 1);
-
-				//Ajustamos la direccion
-				GPIO_WritePin(&handlerDireccM1, 1); //CW
-				GPIO_WritePin(&handlerDireccM2, 0); //CCW
-
-				//Habilitamos las salidas de los PWM
-				enableOutput(&handlerPwmM1);
-				enableOutput(&handlerPwmM2);
-
-				contadorPasosMotores =0;
-
-				break;
-			}
-
-			case 'd': {
-
-				sprintf(bufferMsg,"\nLa direccion es: %s", "Derecha");
-
-				//Activamos los enable de los drivers
-				GPIO_WritePin(&handlerEnableM1, 1);
-				GPIO_WritePin(&handlerEnableM2, 1);
-
-				//Ajustamos la direccion
-				GPIO_WritePin(&handlerDireccM1, 0); //CCW
-				GPIO_WritePin(&handlerDireccM2, 0); //CCW
-
-				//Habilitamos las salidas de los PWM
-				enableOutput(&handlerPwmM1);
-				enableOutput(&handlerPwmM2);
-
-				contadorPasosMotores =0;
-
-				break;
-			}
-
-
-			case 'a': {
-
-				sprintf(bufferMsg,"\nLa direccion es: %s", "Izquierda");
-
-				//Activamos los enable de los drivers
-				GPIO_WritePin(&handlerEnableM1, 1);
-				GPIO_WritePin(&handlerEnableM2, 1);
-
-				//Ajustamos la direccion
-				GPIO_WritePin(&handlerDireccM1, 1); //CW
-				GPIO_WritePin(&handlerDireccM2, 1); //CW
-
-				//Habilitamos las salidas de los PWM
-				enableOutput(&handlerPwmM1);
-				enableOutput(&handlerPwmM2);
-
-				contadorPasosMotores =0;
-
-				break;
-			}
-
-			case 'e': {
-
-				sprintf(bufferMsg,"\nLa direccion es: %s", "Diagonal derecha arriba");
-
-				//Activamos los enable de los drivers
-				GPIO_WritePin(&handlerEnableM1, 1);
-				GPIO_WritePin(&handlerEnableM2, 1);
-
-				//Ajustamos la direccion
-				GPIO_WritePin(&handlerDireccM1, 0); //CW
-
-				//Habilitamos las salida del PWM
-				//solo del motor que se mueve y
-				//deshabilitamos la del otro
-				enableOutput(&handlerPwmM1);
-				disableOutput(&handlerPwmM2);
-
-				contadorPasosMotores =0;
-
-				break;
-			}
-
-			case 'q': {
-
-				sprintf(bufferMsg,"\nLa direccion es: %s", "Diagonal izquierda arriba");
-
-				//Activamos los enable de los drivers
-				GPIO_WritePin(&handlerEnableM1, 1);
-				GPIO_WritePin(&handlerEnableM2, 1);
-
-				//Ajustamos la direccion
-				GPIO_WritePin(&handlerDireccM2, 1); //CCW
-
-				//Habilitamos las salida del PWM
-				//solo del motor que se mueve y
-				//deshabilitamos la del otro
-				disableOutput(&handlerPwmM1);
-				enableOutput(&handlerPwmM2);
-
-				contadorPasosMotores =0;
-
-				break;
-			}
-
-			case 'E': {
-
-				sprintf(bufferMsg,"\nLa direccion es: %s", "Diagonal derecha abajo");
-
-				//Activamos los enable de los drivers
-				GPIO_WritePin(&handlerEnableM1, 1);
-				GPIO_WritePin(&handlerEnableM2, 1);
-
-				//Ajustamos la direccion
-				GPIO_WritePin(&handlerDireccM1, 1); //CCW
-
-				//Habilitamos las salida del PWM
-				//solo del motor que se mueve y
-				//deshabilitamos la del otro
-				enableOutput(&handlerPwmM1);
-				disableOutput(&handlerPwmM2);
-
-				contadorPasosMotores =0;
-
-				break;
-			}
-
-			case 'Q': {
-
-				sprintf(bufferMsg,"\nLa direccion es: %s", "Diagonal izquierda abajo");
-
-				//Activamos los enable de los drivers
-				GPIO_WritePin(&handlerEnableM1, 1);
-				GPIO_WritePin(&handlerEnableM2, 1);
-
-				//Ajustamos la direccion
-				GPIO_WritePin(&handlerDireccM2, 0); //CW
-
-				//Habilitamos las salida del PWM
-				//solo del motor que se mueve y
-				//deshabilitamos la del otro
-				disableOutput(&handlerPwmM1);
-				enableOutput(&handlerPwmM2);
-
-				contadorPasosMotores =0;
-
-				break;
-			}
-
-			case ' ': {
-
-				sprintf(bufferMsg,"\n%s", "STOP");
-
-				//Desactivamos los enable de los drivers
-				GPIO_WritePin(&handlerEnableM1, 0);
-				GPIO_WritePin(&handlerEnableM2, 0);
-
-				//Deshabilitamos todas las señales de PWM
-				disableOutput(&handlerPwmM1);
-				disableOutput(&handlerPwmM2);
-				disableOutput(&handlerPwmServo);
-
-				break;
-			}
-
-			/*Probamos el PW para el servo*/
-			//Esto hay que separarlo luego
-			case 'u': {
-				//Hacemos que el servo suba
-				updatePulseWidth(&handlerPwmServo, SERVO_ARRIBA);
-
-				sprintf(bufferMsg,"\nEl servo esta arriba");
-
-				//Habilitamos el movimiento
-				enableOutput(&handlerPwmServo);
-
-				//Reiniciamos la variable para los pasos
-				contadorPasosServo =0;
-
-				break;
-			}
-
-			case 'o': {
-				//Hacemos que el servo baje
-				updatePulseWidth(&handlerPwmServo, SERVO_ABAJO);
-
-				sprintf(bufferMsg,"\nEl servo esta abajo");
-
-				//Habilitamos el movimiento
-				enableOutput(&handlerPwmServo);
-
-				//Reiniciamos la variable para los pasos
-				contadorPasosServo =0;
-
-				break;
-			}
-
-			/*Ire cambiando el numero de pasos para los motores*/
-			case 't':{
-				//Aumentamos el numero de pasos en 10
-				pasosMotores += 10;
-
-				sprintf(bufferMsg,"\nEl numero de pasos aumentó a: %u",pasosMotores);
-
-				break;
-			}
-
-			case 'y':{
-				//disminuimos el numero de pasos en 10
-				pasosMotores -= 10;
-
-				sprintf(bufferMsg,"\nEl numero de pasos disminuyó a: %u",pasosMotores);
-
-				break;
-			}
-
-			/*Probamos la funcion Home*/
-			case 'H':{
-				sprintf(bufferMsg,"\nRegresando a Home");
-
-				/*Activamos los enable de los drivers*/
-				GPIO_WritePin(&handlerEnableM1, 1);
-				GPIO_WritePin(&handlerEnableM2, 1);
-
-				Home();
-
-
-				break;
-			}
-
-			case 'h':{
-				sprintf(bufferMsg,"\nPosicionando en cero");
-
-				BasicMove();
-
-				break;
-			}
-
-			/*Creamos una funcion que reciba del USART comandos y los imprima*/
-			case 'r':{
-				sprintf(bufferMsg,"\nPor favor, escriba su comando: ");
-				writeMsg(&handlerUSART2, bufferMsg);
-
-				counter =0;
-				USARTDataRecieved = '\0';
-
-				while(USARTDataRecieved != '$'){
-
-					if(USARTDataRecieved != '\0' && USARTDataRecieved != '$'){
-						recievedMsg[counter] =USARTDataRecieved;
-						counter++;
-						USARTDataRecieved ='\0';
-
-					}
-				}
-
-				recievedMsg[counter] = '\0';
-				sprintf(bufferMsg, "\nTu comando ingresado fue: ");
-				writeMsg(&handlerUSART2, bufferMsg);
-				writeMsg(&handlerUSART2, recievedMsg);
-
-				sprintf(bufferMsg," ");
-				break;
-			}
-
-			case 'n':{
-				int8_t numero = -100;
-				sprintf(bufferMsg,"\nEl numero era: %i",numero);
-				writeMsg(&handlerUSART2, bufferMsg);
-
-				numero = -numero;
-				sprintf(bufferMsg,"\npero ahora es: %u",numero);
-				writeMsg(&handlerUSART2, bufferMsg);
-			}
-			default:{
-
-				sprintf(bufferMsg,"\nIngrese un caracter valido para continuar");
-
-				//Desactivamos los enable de los drivers
-				GPIO_WritePin(&handlerEnableM1, 0);
-				GPIO_WritePin(&handlerEnableM2, 0);
-
-				//Deshabilitamos todas las salidas de PWM
-				disableOutput(&handlerPwmM1);
-				disableOutput(&handlerPwmM2);
-				disableOutput(&handlerPwmServo);
-
-				break;
-			}
-			}//Fin del Switch
-
-			writeMsg(&handlerUSART2, bufferMsg);
-
-			USARTDataRecieved = '\0';
-
 		}//Fin del 'if'
-
-
-		if(contadorPasosMotores > pasosMotores){
-			//Desactivamos los enable de los drivers
-			GPIO_WritePin(&handlerEnableM1, 0);
-			GPIO_WritePin(&handlerEnableM2, 0);
-
-			//desactivamos las salidad de los PWM
-			disableOutput(&handlerPwmM1);
-			disableOutput(&handlerPwmM2);
-
-		}
-
-		if(contadorPasosServo > pasosServo){
-			disableOutput(&handlerPwmServo);
-		}
 
 	}
 }
@@ -498,6 +161,10 @@ void InitHardware (void){
 	//basta con hacer esto para uno solo de los handlers
 	startPwmSignal(&handlerPwmM1);
 
+	//Dejamos las salidas deshabilitadas en un principio
+	disableOutput(&handlerPwmM1);
+	disableOutput(&handlerPwmM2);
+
 	//Direccion motores
 	handlerDireccM1.pGPIOx 								= GPIOB;
 	handlerDireccM1.GPIO_PinConfig.GPIO_PinNumber		= PIN_5;
@@ -565,6 +232,9 @@ void InitHardware (void){
 	//Activamos la señal
 	startPwmSignal(&handlerPwmServo);
 
+	//Dejamos la salida deshabilitadas en un principio
+	disableOutput(&handlerPwmServo);
+
 
 	/*Configuramos la comunicacion serial*/
 	//Configuramos pines para la comunicacion serial
@@ -626,6 +296,9 @@ void Home(void){
 	/*Primero paramos todo por seguridad*/
 	disableOutput(&handlerPwmM1);
 	disableOutput(&handlerPwmM2);
+
+	/*Bajamos el iman*/
+
 
 	/*Bajamos la bandera en X para
 	que inicie el movimiento en esta direccion.*/
@@ -984,6 +657,222 @@ void MovDiagonal(int16_t n_pasosX,int16_t n_pasosY){
 	}//Fin del if para habilitar
 
 }//Fin funcion MovDiagonal
+
+uint16_t PasosxFilaYColumna (char filaColumna){
+	/*Esta funcion va a recibir el caracter que representa
+	 * una fila o una columna y devolvera el numero de pasos
+	 * necesario para llegar a ella desde nuestro cero
+	 */
+
+	uint16_t pasos=0;
+
+	switch(filaColumna){
+
+	/*Primero para las columnas*/
+	case 'a':{
+		pasos = 0;
+		break;
+	}
+	case 'b':{
+		pasos = PASOSxCUADRO;
+		break;
+	}
+	case 'c':{
+		pasos = 2*PASOSxCUADRO;
+		break;
+	}
+	case 'd':{
+		pasos = 3*PASOSxCUADRO;
+		break;
+	}
+	case 'e':{
+		pasos = 4*PASOSxCUADRO;
+		break;
+	}
+	case 'f':{
+		pasos = 5*PASOSxCUADRO;
+		break;
+	}
+	case 'g':{
+		pasos = 6*PASOSxCUADRO;
+		break;
+	}
+	case 'h':{
+		pasos = 7*PASOSxCUADRO;
+		break;
+	}
+
+	/*Ahora para las filas*/
+	case '1':{
+		pasos = 0;
+		break;
+	}
+	case '2':{
+		pasos = PASOSxCUADRO;
+		break;
+	}
+	case '3':{
+		pasos = 2*PASOSxCUADRO;
+		break;
+	}
+	case '4':{
+		pasos = 3*PASOSxCUADRO;
+		break;
+	}
+	case '5':{
+		pasos = 4*PASOSxCUADRO;
+		break;
+	}
+	case '6':{
+		pasos = 5*PASOSxCUADRO;
+		break;
+	}
+	case '7':{
+		pasos = 6*PASOSxCUADRO;
+		break;
+	}
+	case '8':{
+		pasos = 7*PASOSxCUADRO;
+		break;
+	}
+	default:{
+		pasos =0;
+
+		sprintf(bufferMsg,"Tal parece que no ingresó un caracter valido");
+		writeMsg(&handlerUSART2, bufferMsg);
+
+		sprintf(bufferMsg,"\nintente nuevamente");
+		writeMsg(&handlerUSART2, bufferMsg);
+		break;
+	}
+	}
+	return pasos;
+}
+
+void CalculoPasos (char *jugada,uint8_t etapa){
+	/*Esta funcion nos va a permitir analizar el string con
+	 * la jugada en notacion algebraica.
+	 *
+	 * Sabiendo que:
+	 *
+	 * jugada = {pieza,columnaInicial,filaInicial,captura,columnaFinal,filaFinal,jaque,'\0'}
+	 */
+
+	/*Se divide en dos etapas. En la primera, calcula los pasos para llegar
+	 * a la casilla donde se ecuentra la pieza que se va mover y en la segunda,
+	 * mueve dicha pieza hacia su posicion final
+	 */
+
+	switch(etapa){
+
+	case 1:{
+		//Calculamos el numero de pasos en X para llegar a la columna
+		//indicada en la jugada
+		pasosEnXY[0] = PasosxFilaYColumna(jugada[1]);
+
+		//Ahora, calculamos el numero de pasos en Y
+		pasosEnXY[1] = PasosxFilaYColumna(jugada[2]);
+
+		break;
+	}
+	case 2:{
+		//Calculamos el numero de pasos en X para llegar a la columna
+		//indicada en la segunda parte de la jugada
+		pasosEnXY[0] =  PasosxFilaYColumna(jugada[4]) - PasosxFilaYColumna(jugada[1]);
+
+		//Ahora, calculamos el numero de pasos en Y
+		pasosEnXY[1] = PasosxFilaYColumna(jugada[5]) - PasosxFilaYColumna(jugada[2]);
+
+		break;
+	}
+	default:{
+		pasosEnXY[0] =0;
+		pasosEnXY[1]=0;
+		break;
+	}
+	}
+
+}//Fin funcion CalcularPasos
+
+void ControlServo(uint8_t posicionServo){
+
+	switch(posicionServo){
+
+	case SERVO_ARRIBA:{
+		//Hacemos que el servo suba
+		updatePulseWidth(&handlerPwmServo, 16);
+
+		//Habilitamos el movimiento
+		enableOutput(&handlerPwmServo);
+
+		//Reiniciamos la variable para los pasos
+		contadorPasosServo =0;
+
+		//hacemos un bucle hasta que se llegue
+		//al destino
+		while(!(contadorPasosServo > PASOS_SERVO )){
+			__NOP();
+		}
+
+		//deshabilitamos el movimiento
+		disableOutput(&handlerPwmServo);
+
+		break;
+	}
+
+	case SERVO_ABAJO:{
+		//Hacemos que el servo baje
+		updatePulseWidth(&handlerPwmServo, 14);
+
+		//Habilitamos el movimiento
+		enableOutput(&handlerPwmServo);
+
+		//Reiniciamos la variable para los pasos
+		contadorPasosServo =0;
+
+		//hacemos un bucle hasta que se llegue
+		//al destino
+		while(!(contadorPasosServo > PASOS_SERVO )){
+			__NOP();
+		}
+
+		//deshabilitamos el movimiento
+		disableOutput(&handlerPwmServo);
+
+		break;
+	}
+
+	default:{
+		__NOP();
+	}
+	}
+
+}
+
+void recibirInstruccion(void){
+
+	sprintf(bufferMsg,"\nPor favor, escriba su comando: ");
+	writeMsg(&handlerUSART2, bufferMsg);
+
+	uint8_t counter =0;
+	USARTDataRecieved = '\0';
+
+	while(USARTDataRecieved != '$'){
+
+		if(USARTDataRecieved != '\0' && USARTDataRecieved != '$'){
+			recievedMsg[counter] =USARTDataRecieved;
+			counter++;
+			USARTDataRecieved ='\0';
+
+		}
+	}
+
+	recievedMsg[counter] = '\0';
+	sprintf(bufferMsg, "\nTu comando ingresado fue: ");
+	writeMsg(&handlerUSART2, bufferMsg);
+	writeMsg(&handlerUSART2, recievedMsg);
+}
+
 
 /*Callbacks*/
 void BasicTimer2_Callback(void){
