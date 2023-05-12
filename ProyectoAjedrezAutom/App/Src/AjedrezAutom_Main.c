@@ -54,7 +54,7 @@ EXTI_Config_t handlerEXTIEndStopY			={0};
 
 //Las relacionadas al USART
 char USARTDataRecieved 			=0;
-char bufferMsg[64] 				={0};
+char bufferMsg[100] 			={0};
 char recievedMsg[10]			={0};
 
 //Las relacionadas a los pasos
@@ -65,6 +65,8 @@ int16_t pasosEnXY[2] 			={0};
 //Las banderas
 uint8_t endStopXFlag			=1;
 uint8_t endStopYFlag			=1;
+uint8_t iniciarJuego			=0;
+uint8_t movDiagonal				=0;
 
 /*Headers de funciones*/
 void InitHardware (void);
@@ -82,13 +84,106 @@ int main(void) {
 
 	InitHardware();
 
+	//Bajamos el iman
+	ControlServo(SERVO_ABAJO);
+
 	/* Loop forever*/
 	while (1) {
 
-		if(USARTDataRecieved != '\0'){
+		/* Creamos un if que solo se ejecutara al comienzo de cada juego*/
+		if(!iniciarJuego){
+			delay_ms(5000);
 
-		}//Fin del 'if'
+			BasicMove();
+			/*desactivamos los enable de los drivers*/
+			GPIO_WritePin(&handlerEnableM1, 0);
+			GPIO_WritePin(&handlerEnableM2, 0);
 
+
+			sprintf(bufferMsg,"Si quiere iniciar el juego, presione ESPACIO");
+			writeMsg(&handlerUSART2, bufferMsg);
+
+			//Mantenemos un bucle mientras el usuario inicia el juego
+			while(USARTDataRecieved != ' '){
+				__NOP();
+			}
+
+			iniciarJuego = 1;
+			sprintf(bufferMsg,"\nSe inició el juego");
+			writeMsg(&handlerUSART2, bufferMsg);
+			delay_ms(1000);
+
+			sprintf(bufferMsg,"\nDebera ingresar todas sus jugada en notacion algebraica");
+			writeMsg(&handlerUSART2, bufferMsg);
+
+			sprintf(bufferMsg,"\nteniendo en cuenta lo siguiente:\nDebe escribir en una sola linea continua");
+			writeMsg(&handlerUSART2, bufferMsg);
+
+			sprintf(bufferMsg,"\n-> Pieza-ColumnaInicial-FilaInicial-Captura-ColumnaFInal-FilaFinal-Jaque");
+			writeMsg(&handlerUSART2, bufferMsg);
+
+//			sprintf(bufferMsg,"");
+//			writeMsg(&handlerUSART2, bufferMsg);
+
+			/*AÑADIR LUEGO EL RESTO DE LA INFO*/
+		}
+
+		/*Hacemos que el carro vaya a home en cada ciclo*/
+		Home();
+
+		/*Hacemos que el usuario ingrese su jugada en cada ciclo*/
+		sprintf(bufferMsg,"\nIngrese su jugada: ");
+		writeMsg(&handlerUSART2, bufferMsg);
+
+		recibirInstruccion();
+
+		/*Analizamos la jugada ingresada y movemos la pieza*/
+
+		/*Se inicia la etapa 1 de agarrar la pieza*/
+		//Calculamos los pasos
+		CalculoPasos(recievedMsg, 1);
+
+		//Se realiza el movimiento basico*/
+		BasicMove();
+
+		//Se analiza si el movimiento sera en diagonal
+		MovDiagonal(pasosEnXY[0], pasosEnXY[1]);
+
+		//Si el movimiento no fue en diagonal entonces
+		//Se mueve primero en X y luego en Y
+		if(!(movDiagonal)){
+			//Movemos en X
+			MovX(pasosEnXY[0]);
+
+			//Movemos en Y
+			MovY(pasosEnXY[1]);
+		}
+
+		//Sujetamos la pieza
+		ControlServo(SERVO_ARRIBA);
+
+		/*Se inicia la etapa 2 de ubicar la pieza*/
+		//Calculamos los pasos
+		CalculoPasos(recievedMsg, 2);
+
+		//Se analiza si el movimiento sera en diagonal
+		MovDiagonal(pasosEnXY[0], pasosEnXY[1]);
+
+		//Si el movimiento no fue en diagonal entonces
+		//Se mueve primero en X y luego en Y
+		if(!(movDiagonal)){
+			//Movemos en X
+			MovX(pasosEnXY[0]);
+
+			//Movemos en Y
+			MovY(pasosEnXY[1]);
+		}
+
+		//Soltamos la pieza
+		ControlServo(SERVO_ABAJO);
+
+		sprintf(bufferMsg,"\nMovimiento completado");
+		writeMsg(&handlerUSART2, bufferMsg);
 	}
 }
 
@@ -288,6 +383,9 @@ void InitHardware (void){
 	//Cargamos las configuraciones
 	ExtInt_Config(&handlerEXTIEndStopX);
 	ExtInt_Config(&handlerEXTIEndStopY);
+
+	/*Configuramos el Systick*/
+	config_SysTick_ms(HSI_CLOCK_CONFIGURED);
 }//Fin funcion InitHardware
 
 
@@ -297,8 +395,9 @@ void Home(void){
 	disableOutput(&handlerPwmM1);
 	disableOutput(&handlerPwmM2);
 
-	/*Bajamos el iman*/
-
+	/*Activamos los enable de los drivers*/
+	GPIO_WritePin(&handlerEnableM1, 1);
+	GPIO_WritePin(&handlerEnableM2, 1);
 
 	/*Bajamos la bandera en X para
 	que inicie el movimiento en esta direccion.*/
@@ -316,7 +415,6 @@ void Home(void){
 		__NOP();
 	}
 
-
 	/*Ahora, bajamos la bandera en Y para
 	que inicie el movimiento en esta direccion.*/
 	endStopYFlag =0;
@@ -325,13 +423,12 @@ void Home(void){
 	GPIO_WritePin(&handlerDireccM1, 1); //CW
 	GPIO_WritePin(&handlerDireccM2, 0); //CCW
 
-
 	//Mientras no cambie la bandera, el se mantiene en un bucle
 	while(!endStopYFlag){
 		__NOP();
 	}
 
-	/*Desactivamos el movimiento en Y*/
+	/*Desactivamos el movimiento*/
 	disableOutput(&handlerPwmM1);
 	disableOutput(&handlerPwmM2);
 
@@ -395,9 +492,6 @@ void BasicMove (void) {
 }//Fin funcion BasicMove
 
 void MovX (int16_t n_pasos){
-	/*Esta funcion debe usarse solo cuando
-	 * ya se este en el cero con la funcion BasicMove
-	 */
 
 	if(n_pasos >= 0){
 
@@ -456,9 +550,6 @@ void MovX (int16_t n_pasos){
 
 void MovY(int16_t n_pasos){
 
-	/*Esta funcion debe usarse solo cuando
-	 * ya se este en el cero con la funcion BasicMove
-	 */
 
 	if(n_pasos >= 0){
 
@@ -517,9 +608,6 @@ void MovY(int16_t n_pasos){
 
 
 void MovDiagonal(int16_t n_pasosX,int16_t n_pasosY){
-	/*Esta funcion debe usarse solo cuando
-	 * ya se este en el cero con la funcion BasicMove
-	 */
 
 	/*Comparamos el numero de pasos X y en Y y si
 	 * son iguales, significa que el movimiento se
@@ -654,7 +742,11 @@ void MovDiagonal(int16_t n_pasosX,int16_t n_pasosY){
 			disableOutput(&handlerPwmM2);
 		}
 
-	}//Fin del if para habilitar
+		movDiagonal =1;
+	}
+	else{
+		movDiagonal =0;
+	}
 
 }//Fin funcion MovDiagonal
 
@@ -851,9 +943,6 @@ void ControlServo(uint8_t posicionServo){
 
 void recibirInstruccion(void){
 
-	sprintf(bufferMsg,"\nPor favor, escriba su comando: ");
-	writeMsg(&handlerUSART2, bufferMsg);
-
 	uint8_t counter =0;
 	USARTDataRecieved = '\0';
 
@@ -862,13 +951,14 @@ void recibirInstruccion(void){
 		if(USARTDataRecieved != '\0' && USARTDataRecieved != '$'){
 			recievedMsg[counter] =USARTDataRecieved;
 			counter++;
+			writeChar(&handlerUSART2, USARTDataRecieved);
 			USARTDataRecieved ='\0';
 
 		}
 	}
 
 	recievedMsg[counter] = '\0';
-	sprintf(bufferMsg, "\nTu comando ingresado fue: ");
+	sprintf(bufferMsg, "\nSu juagada fue: ");
 	writeMsg(&handlerUSART2, bufferMsg);
 	writeMsg(&handlerUSART2, recievedMsg);
 }
