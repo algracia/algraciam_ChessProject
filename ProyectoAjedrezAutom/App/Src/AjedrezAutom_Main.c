@@ -19,8 +19,9 @@
 #include "PwmDriver.h"
 
 /*Macros utiles*/
-#define SERVO_UP 	16
-#define SERVO_DOWN 	14
+#define SERVO_ARRIBA 	16
+#define SERVO_ABAJO 	14
+#define PASOSxCUADRO 	500
 
 /*Configuramos los handlers*/
 GPIO_Handler_t handlerOnBoardLed 			={0};
@@ -70,6 +71,9 @@ uint8_t endStopYFlag			=1;
 void InitHardware (void);
 void Home(void);
 void BasicMove (void);
+void MovX (int16_t n_pasos);
+void MovX (int16_t n_pasos);
+void MovDiagonal(int16_t n_pasosX,int16_t n_pasosY);
 
 int main(void) {
 
@@ -278,7 +282,7 @@ int main(void) {
 			//Esto hay que separarlo luego
 			case 'u': {
 				//Hacemos que el servo suba
-				updatePulseWidth(&handlerPwmServo, SERVO_UP);
+				updatePulseWidth(&handlerPwmServo, SERVO_ARRIBA);
 
 				sprintf(bufferMsg,"\nEl servo esta arriba");
 
@@ -293,7 +297,7 @@ int main(void) {
 
 			case 'o': {
 				//Hacemos que el servo baje
-				updatePulseWidth(&handlerPwmServo, SERVO_DOWN);
+				updatePulseWidth(&handlerPwmServo, SERVO_ABAJO);
 
 				sprintf(bufferMsg,"\nEl servo esta abajo");
 
@@ -329,6 +333,10 @@ int main(void) {
 			case 'H':{
 				sprintf(bufferMsg,"\nRegresando a Home");
 
+				/*Activamos los enable de los drivers*/
+				GPIO_WritePin(&handlerEnableM1, 1);
+				GPIO_WritePin(&handlerEnableM2, 1);
+
 				Home();
 
 
@@ -351,9 +359,9 @@ int main(void) {
 				counter =0;
 				USARTDataRecieved = '\0';
 
-				while(USARTDataRecieved != '#'){
+				while(USARTDataRecieved != '$'){
 
-					if(USARTDataRecieved != '\0' && USARTDataRecieved != '#'){
+					if(USARTDataRecieved != '\0' && USARTDataRecieved != '$'){
 						recievedMsg[counter] =USARTDataRecieved;
 						counter++;
 						USARTDataRecieved ='\0';
@@ -368,6 +376,16 @@ int main(void) {
 
 				sprintf(bufferMsg," ");
 				break;
+			}
+
+			case 'n':{
+				int8_t numero = -100;
+				sprintf(bufferMsg,"\nEl numero era: %i",numero);
+				writeMsg(&handlerUSART2, bufferMsg);
+
+				numero = -numero;
+				sprintf(bufferMsg,"\npero ahora es: %u",numero);
+				writeMsg(&handlerUSART2, bufferMsg);
 			}
 			default:{
 
@@ -600,17 +618,14 @@ void InitHardware (void){
 	//Cargamos las configuraciones
 	ExtInt_Config(&handlerEXTIEndStopX);
 	ExtInt_Config(&handlerEXTIEndStopY);
-}
+}//Fin funcion InitHardware
+
 
 void Home(void){
 
 	/*Primero paramos todo por seguridad*/
 	disableOutput(&handlerPwmM1);
 	disableOutput(&handlerPwmM2);
-
-	/*Activamos los enable de los drivers*/
-	GPIO_WritePin(&handlerEnableM1, 1);
-	GPIO_WritePin(&handlerEnableM2, 1);
 
 	/*Bajamos la bandera en X para
 	que inicie el movimiento en esta direccion.*/
@@ -628,10 +643,6 @@ void Home(void){
 		__NOP();
 	}
 
-//	/*Desactivamos el movimiento en X*/
-//	disableOutput(&handlerPwmM1);
-//	disableOutput(&handlerPwmM2);
-
 
 	/*Ahora, bajamos la bandera en Y para
 	que inicie el movimiento en esta direccion.*/
@@ -641,8 +652,6 @@ void Home(void){
 	GPIO_WritePin(&handlerDireccM1, 1); //CW
 	GPIO_WritePin(&handlerDireccM2, 0); //CCW
 
-//	enableOutput(&handlerPwmM1);
-//	enableOutput(&handlerPwmM2);
 
 	//Mientras no cambie la bandera, el se mantiene en un bucle
 	while(!endStopYFlag){
@@ -658,14 +667,15 @@ void Home(void){
 	GPIO_WritePin(&handlerEnableM2, 0);
 
 
-}
+}//Fin funcion Home
+
 
 void BasicMove (void) {
 
-	//Ahora, hacemos que se mueva hacia arriba
-	//y a partir de esta posicion, va a estar nuestro cero
+	/*Ahora, hacemos que se mueva hacia arriba
+	y a partir de esta posicion, va a estar nuestro cero*/
 
-	/*Activamos los enable de los drivers*/
+	//Activamos los enable de los drivers
 	GPIO_WritePin(&handlerEnableM1, 1);
 	GPIO_WritePin(&handlerEnableM2, 1);
 
@@ -680,21 +690,300 @@ void BasicMove (void) {
 	//Inicializamos el contador de pasos
 	contadorPasosMotores =0;
 
-	//Hacemos que se quede en unn bucle hasta que se
-	//complete el numero de pasos
+	/*Hacemos que se quede en un bucle hasta que se
+	complete el numero de pasos*/
 	while(!(contadorPasosMotores > 385)){
 		__NOP();
 	}
 
-	//Detenmos todo
+	/*Ahora hacemos que se desplace en diagonal hacia
+	 *el centro del cuadro A1*/
+
+	//deshabilitamos la salida PWM del motor que no se mueve
+	disableOutput(&handlerPwmM2);
+
+	//Ajustamos la direccion
+	GPIO_WritePin(&handlerDireccM1, 0); //CW
+
+	//Hacemos que se desplaze 1 cuadro en diagonal
+	//Usando nuevamente un bucle
+
+	//Inicializamos el contador de pasos
+	contadorPasosMotores =0;
+
+	while(!(contadorPasosMotores > PASOSxCUADRO)){
+		__NOP();
+	}
+
+	//Detenemos todo
 	disableOutput(&handlerPwmM1);
 	disableOutput(&handlerPwmM2);
 
-//	/*desactivamos los enable de los drivers*/
-//	GPIO_WritePin(&handlerEnableM1, 1);
-//	GPIO_WritePin(&handlerEnableM2, 1);
-}
+}//Fin funcion BasicMove
 
+void MovX (int16_t n_pasos){
+	/*Esta funcion debe usarse solo cuando
+	 * ya se este en el cero con la funcion BasicMove
+	 */
+
+	if(n_pasos >= 0){
+
+		/*se mueve hacia la derecha*/
+		//Ajustamos la direccion
+		GPIO_WritePin(&handlerDireccM1, 0); //CCW
+		GPIO_WritePin(&handlerDireccM2, 0); //CCW
+
+		//Habilitamos las salidas de los PWM
+		enableOutput(&handlerPwmM1);
+		enableOutput(&handlerPwmM2);
+
+		//Reiniciamos el contador de pasos
+		contadorPasosMotores =0;
+
+		//hacemos un bucle hasta que se llegue
+		//al destino
+		while(!(contadorPasosMotores >= n_pasos)){
+			__NOP();
+		}
+
+		//Deshabilitamos las salidas de los PWM
+		disableOutput(&handlerPwmM1);
+		disableOutput(&handlerPwmM2);
+
+	}
+	else{
+
+		/*se mueve hacia la izquierda*/
+		//hacemos que el numero de pasos vuelva a ser positivo
+		n_pasos = -n_pasos;
+
+		//Ajustamos la direccion
+		GPIO_WritePin(&handlerDireccM1, 1); //CW
+		GPIO_WritePin(&handlerDireccM2, 1); //CW
+
+		//Habilitamos las salidas de los PWM
+		enableOutput(&handlerPwmM1);
+		enableOutput(&handlerPwmM2);
+
+		//Reiniciamos el contador de pasos
+		contadorPasosMotores =0;
+
+		//hacemos un bucle hasta que se llegue
+		//al destino
+		while(!(contadorPasosMotores >= n_pasos)){
+			__NOP();
+		}
+
+		//Deshabilitamos las salidas de los PWM
+		disableOutput(&handlerPwmM1);
+		disableOutput(&handlerPwmM2);
+
+	}
+}//Fin funcion MovX
+
+void MovY(int16_t n_pasos){
+
+	/*Esta funcion debe usarse solo cuando
+	 * ya se este en el cero con la funcion BasicMove
+	 */
+
+	if(n_pasos >= 0){
+
+		/*se mueve hacia arriba*/
+		//Ajustamos la direccion
+		GPIO_WritePin(&handlerDireccM1, 0); //CCW
+		GPIO_WritePin(&handlerDireccM2, 1); //CW
+
+		//Habilitamos las salidas de los PWM
+		enableOutput(&handlerPwmM1);
+		enableOutput(&handlerPwmM2);
+
+		//Reiniciamos el contador de pasos
+		contadorPasosMotores =0;
+
+		//hacemos un bucle hasta que se llegue
+		//al destino
+		while(!(contadorPasosMotores >= n_pasos)){
+			__NOP();
+		}
+
+		//Deshabilitamos las salidas de los PWM
+		disableOutput(&handlerPwmM1);
+		disableOutput(&handlerPwmM2);
+
+	}
+	else{
+
+		/*se mueve hacia abajo*/
+		//hacemos que el numero de pasos vuelva a ser positivo
+		n_pasos = -n_pasos;
+
+		//Ajustamos la direccion
+		GPIO_WritePin(&handlerDireccM1, 1); //CW
+		GPIO_WritePin(&handlerDireccM2, 0); //CCW
+
+		//Habilitamos las salidas de los PWM
+		enableOutput(&handlerPwmM1);
+		enableOutput(&handlerPwmM2);
+
+		//Reiniciamos el contador de pasos
+		contadorPasosMotores =0;
+
+		//hacemos un bucle hasta que se llegue
+		//al destino
+		while(!(contadorPasosMotores >= n_pasos)){
+			__NOP();
+		}
+
+		//Deshabilitamos las salidas de los PWM
+		disableOutput(&handlerPwmM1);
+		disableOutput(&handlerPwmM2);
+
+	}
+}//Fin funcion MovY
+
+
+void MovDiagonal(int16_t n_pasosX,int16_t n_pasosY){
+	/*Esta funcion debe usarse solo cuando
+	 * ya se este en el cero con la funcion BasicMove
+	 */
+
+	/*Comparamos el numero de pasos X y en Y y si
+	 * son iguales, significa que el movimiento se
+	 * da en una diagonal
+	 */
+	int16_t comparacion =1;
+	uint16_t pasosD =0;
+
+	//Verificamos si alguno de los dos es negativo
+	//y los comparamos enseguida
+	if(n_pasosX <0 && n_pasosY >0){
+		comparacion = -n_pasosX - n_pasosY;
+
+	}
+	else if(n_pasosX >0 && n_pasosY <0){
+			comparacion = n_pasosX + n_pasosY;
+
+	}else{
+		comparacion = n_pasosX - n_pasosY;
+	}
+
+	/*Hacemos que esta funcion se ejecute
+	 * solo si ambos numeros de pasos son iguales
+	 */
+	if(comparacion == 0){
+
+		if(n_pasosX >0 && n_pasosY >0){
+
+			/*se mueve en diagonal derecha arriba*/
+			//Ajustamos la direccion
+			GPIO_WritePin(&handlerDireccM1, 0); //CCW
+
+			//Habilitamos las salida del PWM
+			//solo del motor que se mueve y
+			//deshabilitamos la del otro
+			enableOutput(&handlerPwmM1);
+			disableOutput(&handlerPwmM2);
+
+			//Reiniciamos el contador de pasos
+			contadorPasosMotores =0;
+
+			//hacemos un bucle hasta que se llegue
+			//al destino
+			pasosD = (2*n_pasosX);
+			while(!(contadorPasosMotores >= pasosD )){
+				__NOP();
+			}
+
+			//Deshabilitamos las salidas de los PWM
+			disableOutput(&handlerPwmM1);
+			disableOutput(&handlerPwmM2);
+		}
+
+		else if(n_pasosX <0 && n_pasosY >0){
+
+			/*se mueve en diagonal izquierda arriba*/
+			//Ajustamos la direccion
+			GPIO_WritePin(&handlerDireccM2, 1); //CW
+
+			//Habilitamos las salida del PWM
+			//solo del motor que se mueve y
+			//deshabilitamos la del otro
+			disableOutput(&handlerPwmM1);
+			enableOutput(&handlerPwmM2);
+
+			//Reiniciamos el contador de pasos
+			contadorPasosMotores =0;
+
+			//hacemos un bucle hasta que se llegue
+			//al destino
+			pasosD = (2*n_pasosY);
+			while(!(contadorPasosMotores >= pasosD)){
+				__NOP();
+			}
+
+			//Deshabilitamos las salidas de los PWM
+			disableOutput(&handlerPwmM1);
+			disableOutput(&handlerPwmM2);
+		}
+
+		else if(n_pasosX >0 && n_pasosY <0){
+
+			/*se mueve en diagonal izquierda abajo*/
+			//Ajustamos la direccion
+			GPIO_WritePin(&handlerDireccM2, 0); //CCW
+
+			//Habilitamos las salida del PWM
+			//solo del motor que se mueve y
+			//deshabilitamos la del otro
+			disableOutput(&handlerPwmM1);
+			enableOutput(&handlerPwmM2);
+
+			//Reiniciamos el contador de pasos
+			contadorPasosMotores =0;
+
+			//hacemos un bucle hasta que se llegue
+			//al destino
+			pasosD = (2*n_pasosX);
+			while(!(contadorPasosMotores >= pasosD)){
+				__NOP();
+			}
+
+			//Deshabilitamos las salidas de los PWM
+			disableOutput(&handlerPwmM1);
+			disableOutput(&handlerPwmM2);
+		}
+
+		else if(n_pasosX <0 && n_pasosY <0){
+
+			/*se mueve en diagonal derecha abajo*/
+			//Ajustamos la direccion
+			GPIO_WritePin(&handlerDireccM1, 1); //CW
+
+			//Habilitamos las salida del PWM
+			//solo del motor que se mueve y
+			//deshabilitamos la del otro
+			enableOutput(&handlerPwmM1);
+			disableOutput(&handlerPwmM2);
+
+			//Reiniciamos el contador de pasos
+			contadorPasosMotores =0;
+
+			//hacemos un bucle hasta que se llegue
+			//al destino
+			pasosD = -(2*n_pasosX);
+			while(!(contadorPasosMotores >= pasosD)){
+				__NOP();
+			}
+
+			//Deshabilitamos las salidas de los PWM
+			disableOutput(&handlerPwmM1);
+			disableOutput(&handlerPwmM2);
+		}
+
+	}//Fin del if para habilitar
+
+}//Fin funcion MovDiagonal
 
 /*Callbacks*/
 void BasicTimer2_Callback(void){
