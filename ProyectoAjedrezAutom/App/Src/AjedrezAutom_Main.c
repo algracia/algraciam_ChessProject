@@ -21,7 +21,7 @@
 /*Macros utiles*/
 #define SERVO_ARRIBA 	0
 #define SERVO_ABAJO 	1
-#define PASOS_SERVO		40
+#define PASOS_SERVO		39
 #define PASOSxCUADRO 	500
 
 /*Configuramos los handlers*/
@@ -67,6 +67,7 @@ uint8_t endStopXFlag			=1;
 uint8_t endStopYFlag			=1;
 uint8_t iniciarJuego			=0;
 uint8_t movDiagonal				=0;
+uint8_t movCaballo				=0;
 
 /*Headers de funciones*/
 void InitHardware (void);
@@ -76,6 +77,7 @@ void ControlServo(uint8_t posicionServo);
 void MovX (int16_t n_pasos);
 void MovY (int16_t n_pasos);
 void MovDiagonal(int16_t n_pasosX,int16_t n_pasosY);
+void MovCaballo(int16_t n_pasosX,int16_t n_pasosY);
 uint16_t PasosxFilaYColumna(char filaColumna);
 void CalculoPasos (char *jugada,uint8_t etapa);
 void recibirInstruccion(void);
@@ -137,46 +139,49 @@ int main(void) {
 
 		recibirInstruccion();
 
+
 		/*Analizamos la jugada ingresada y movemos la pieza*/
 
-		/*Se inicia la etapa 1 de agarrar la pieza*/
+		/*Se inicia la ETAPA 1 de agarrar la pieza*/
 		//Calculamos los pasos
 		CalculoPasos(recievedMsg, 1);
 
 		//Se realiza el movimiento basico*/
 		BasicMove();
 
-		//Se analiza si el movimiento sera en diagonal
-		MovDiagonal(pasosEnXY[0], pasosEnXY[1]);
-
-		//Si el movimiento no fue en diagonal entonces
 		//Se mueve primero en X y luego en Y
-		if(!(movDiagonal)){
+
 			//Movemos en X
 			MovX(pasosEnXY[0]);
 
 			//Movemos en Y
 			MovY(pasosEnXY[1]);
-		}
 
 		//Sujetamos la pieza
 		ControlServo(SERVO_ARRIBA);
 
-		/*Se inicia la etapa 2 de ubicar la pieza*/
+
+		/*Se inicia la ETAPA 2 de ubicar la pieza*/
 		//Calculamos los pasos
 		CalculoPasos(recievedMsg, 2);
 
+		//Se analiza si el movimiento sera de un caballo
+		MovCaballo(pasosEnXY[0], pasosEnXY[1]);
+
+		//Si el movimiento no fue el de un caballo,
 		//Se analiza si el movimiento sera en diagonal
-		MovDiagonal(pasosEnXY[0], pasosEnXY[1]);
+		if(!(movCaballo)){
+			MovDiagonal(pasosEnXY[0], pasosEnXY[1]);
 
-		//Si el movimiento no fue en diagonal entonces
-		//Se mueve primero en X y luego en Y
-		if(!(movDiagonal)){
-			//Movemos en X
-			MovX(pasosEnXY[0]);
+			//Si el movimiento no fue en diagonal entonces
+			//Se mueve primero en X y luego en Y
+			if(!(movDiagonal)){
+				//Movemos en X
+				MovX(pasosEnXY[0]);
 
-			//Movemos en Y
-			MovY(pasosEnXY[1]);
+				//Movemos en Y
+				MovY(pasosEnXY[1]);
+			}
 		}
 
 		//Soltamos la pieza
@@ -611,28 +616,14 @@ void MovDiagonal(int16_t n_pasosX,int16_t n_pasosY){
 
 	/*Comparamos el numero de pasos X y en Y y si
 	 * son iguales, significa que el movimiento se
-	 * da en una diagonal
+	 * da en una diagonal.
+	 *
+	 * Esto implica que n_pasosX/n_pasosY = +-1
 	 */
-	int16_t comparacion =1;
+
 	uint16_t pasosD =0;
 
-	//Verificamos si alguno de los dos es negativo
-	//y los comparamos enseguida
-	if(n_pasosX <0 && n_pasosY >0){
-		comparacion = -n_pasosX - n_pasosY;
-
-	}
-	else if(n_pasosX >0 && n_pasosY <0){
-			comparacion = n_pasosX + n_pasosY;
-
-	}else{
-		comparacion = n_pasosX - n_pasosY;
-	}
-
-	/*Hacemos que esta funcion se ejecute
-	 * solo si ambos numeros de pasos son iguales
-	 */
-	if(comparacion == 0){
+	if(n_pasosX/n_pasosY == 1 || n_pasosX/n_pasosY == -1 ){
 
 		if(n_pasosX >0 && n_pasosY >0){
 
@@ -749,6 +740,53 @@ void MovDiagonal(int16_t n_pasosX,int16_t n_pasosY){
 	}
 
 }//Fin funcion MovDiagonal
+
+void MovCaballo(int16_t n_pasosX,int16_t n_pasosY){
+	/*Si se va a mover un caballo, se cumple que n_pasosX = 2*n_pasosY
+	 * o n_pasosY = 2*n_pasosX
+	 * entonces, si n_pasosX/n_pasosY = +-2 o n_pasosY/n_pasosX = +-2,
+	 * se garantiza que se mueve el caballo y es posible saber su direccion*/
+
+	//Realizamos las comparaciones
+	if(n_pasosX/n_pasosY == 2 || n_pasosX/n_pasosY == -2 ){
+		//el mov sera en una L horizontal
+
+		//Primero nos movemos en Y la mitad de los pasos
+		//para asi desplazarse entre los bordes de los cuadros
+		MovY(n_pasosY/2);
+
+		//Luego, nos movemos la cantidad de pasos solicitado en X
+		MovX(n_pasosX);
+
+		//Finalmente nos movemos en Y el resto de pasos
+		MovY(n_pasosY/2);
+
+		//Levantamos la bandera que indica que efectivamente hubo un movimiento de caballo
+		movCaballo =1;
+
+	}
+	else if(n_pasosY/n_pasosX == 2 || n_pasosY/n_pasosX == -2 ){
+		//el mov sera en una L vertical
+
+		//Primero nos movemos en X la mitad de los pasos
+		//para asi desplazarse entre los bordes de los cuadros
+		MovX(n_pasosX/2);
+
+		//Luego, nos movemos la cantidad de pasos solicitado en Y
+		MovY(n_pasosY);
+
+		//Finalmente nos movemos en X el resto de pasos
+		MovX(n_pasosX/2);
+
+		//Levantamos la bandera que indica que efectivamente hubo un movimiento de caballo
+		movCaballo =1;
+
+	}
+	else{
+		movCaballo =0;
+	}
+}//Fin funcion MovCaballo
+
 
 uint16_t PasosxFilaYColumna (char filaColumna){
 	/*Esta funcion va a recibir el caracter que representa
