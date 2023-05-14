@@ -21,7 +21,7 @@
 /*Macros utiles*/
 #define SERVO_ARRIBA 	0
 #define SERVO_ABAJO 	1
-#define PASOS_SERVO		39
+#define PASOS_SERVO		37
 #define PASOSxCUADRO 	500
 
 /*Configuramos los handlers*/
@@ -94,16 +94,21 @@ int main(void) {
 
 		/* Creamos un if que solo se ejecutara al comienzo de cada juego*/
 		if(!iniciarJuego){
-			delay_ms(5000);
 
+			/*Hacemos un pequeño movmiento para despegar el carro de los finales de carrera*/
 			BasicMove();
-			/*desactivamos los enable de los drivers*/
+			//desactivamos los enable de los drivers
 			GPIO_WritePin(&handlerEnableM1, 0);
 			GPIO_WritePin(&handlerEnableM2, 0);
 
-
-			sprintf(bufferMsg,"Si quiere iniciar el juego, presione ESPACIO");
-			writeMsg(&handlerUSART2, bufferMsg);
+//			//Mantenemos un bucle mientras el usuario  indica que el servo debe o no bajarse
+//			while(USARTDataRecieved != 'y' || USARTDataRecieved != 'n'){
+//				__NOP();
+//			}
+//
+//			if(USARTDataRecieved == 'y'){
+//				ControlServo(SERVO_ABAJO);
+//			}
 
 			//Mantenemos un bucle mientras el usuario inicia el juego
 			while(USARTDataRecieved != ' '){
@@ -111,32 +116,12 @@ int main(void) {
 			}
 
 			iniciarJuego = 1;
-			sprintf(bufferMsg,"\nSe inició el juego");
-			writeMsg(&handlerUSART2, bufferMsg);
-			delay_ms(1000);
 
-			sprintf(bufferMsg,"\nDebera ingresar todas sus jugada en notacion algebraica");
-			writeMsg(&handlerUSART2, bufferMsg);
-
-			sprintf(bufferMsg,"\nteniendo en cuenta lo siguiente:\nDebe escribir en una sola linea continua");
-			writeMsg(&handlerUSART2, bufferMsg);
-
-			sprintf(bufferMsg,"\n-> Pieza-ColumnaInicial-FilaInicial-Captura-ColumnaFInal-FilaFinal-Jaque");
-			writeMsg(&handlerUSART2, bufferMsg);
-
-//			sprintf(bufferMsg,"");
-//			writeMsg(&handlerUSART2, bufferMsg);
-
-			/*AÑADIR LUEGO EL RESTO DE LA INFO*/
+			Home();
 		}
 
-		/*Hacemos que el carro vaya a home en cada ciclo*/
-		Home();
 
 		/*Hacemos que el usuario ingrese su jugada en cada ciclo*/
-		sprintf(bufferMsg,"\nIngrese su jugada: ");
-		writeMsg(&handlerUSART2, bufferMsg);
-
 		recibirInstruccion();
 
 
@@ -187,8 +172,12 @@ int main(void) {
 		//Soltamos la pieza
 		ControlServo(SERVO_ABAJO);
 
-		sprintf(bufferMsg,"\nMovimiento completado");
+		/*Hacemos que el carro vaya a home en cada ciclo*/
+		Home();
+
+		sprintf(bufferMsg,"\nMovimiento completado\n");
 		writeMsg(&handlerUSART2, bufferMsg);
+
 	}
 }
 
@@ -898,20 +887,20 @@ void CalculoPasos (char *jugada,uint8_t etapa){
 	case 1:{
 		//Calculamos el numero de pasos en X para llegar a la columna
 		//indicada en la jugada
-		pasosEnXY[0] = PasosxFilaYColumna(jugada[1]);
+		pasosEnXY[0] = PasosxFilaYColumna(jugada[0]);
 
 		//Ahora, calculamos el numero de pasos en Y
-		pasosEnXY[1] = PasosxFilaYColumna(jugada[2]);
+		pasosEnXY[1] = PasosxFilaYColumna(jugada[1]);
 
 		break;
 	}
 	case 2:{
 		//Calculamos el numero de pasos en X para llegar a la columna
 		//indicada en la segunda parte de la jugada
-		pasosEnXY[0] =  PasosxFilaYColumna(jugada[4]) - PasosxFilaYColumna(jugada[1]);
+		pasosEnXY[0] =  PasosxFilaYColumna(jugada[2]) - PasosxFilaYColumna(jugada[0]);
 
 		//Ahora, calculamos el numero de pasos en Y
-		pasosEnXY[1] = PasosxFilaYColumna(jugada[5]) - PasosxFilaYColumna(jugada[2]);
+		pasosEnXY[1] = PasosxFilaYColumna(jugada[3]) - PasosxFilaYColumna(jugada[1]);
 
 		break;
 	}
@@ -981,6 +970,9 @@ void ControlServo(uint8_t posicionServo){
 
 void recibirInstruccion(void){
 
+//	sprintf(bufferMsg,"\nSTM listo para recibir el nuevo movimiento\n");
+//	writeMsg(&handlerUSART2, bufferMsg);
+
 	uint8_t counter =0;
 	USARTDataRecieved = '\0';
 
@@ -989,14 +981,13 @@ void recibirInstruccion(void){
 		if(USARTDataRecieved != '\0' && USARTDataRecieved != '$'){
 			recievedMsg[counter] =USARTDataRecieved;
 			counter++;
-			writeChar(&handlerUSART2, USARTDataRecieved);
 			USARTDataRecieved ='\0';
 
 		}
 	}
 
 	recievedMsg[counter] = '\0';
-	sprintf(bufferMsg, "\nSu juagada fue: ");
+	sprintf(bufferMsg, "\nSu jugada fue: ");
 	writeMsg(&handlerUSART2, bufferMsg);
 	writeMsg(&handlerUSART2, recievedMsg);
 }

@@ -38,15 +38,28 @@ int main(void) {
 	/* Loop forever*/
 	while (1) {
 
-		if(USARTDataRecieved != '\0'){
 
+		uint8_t counter =0;
+		USARTDataRecieved = '\0';
+
+		while(USARTDataRecieved != '$'){
+
+			if(USARTDataRecieved != '\0' && USARTDataRecieved != '$'){
+				recievedMsg[counter] =USARTDataRecieved;
+				counter++;
+				writeChar(&handlerUSART2, USARTDataRecieved);
+				USARTDataRecieved ='\0';
 
 			}
-
 		}
 
+		recievedMsg[counter] = '\0';
+		sprintf(bufferMsg, "\nSu juagada fue: ");
+		writeMsg(&handlerUSART2, bufferMsg);
+		writeMsg(&handlerUSART2, recievedMsg);
 	}
 }
+
 
 void InitHardware (void){
 	/*Configuramos el Blinky*/
