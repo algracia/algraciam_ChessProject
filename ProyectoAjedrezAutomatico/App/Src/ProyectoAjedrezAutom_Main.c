@@ -19,10 +19,12 @@
 #include "PwmDriver.h"
 
 /*Macros utiles*/
-#define SERVO_ARRIBA 	0
-#define SERVO_ABAJO 	1
-#define PASOS_SERVO		37
-#define PASOSxCUADRO 	500
+#define SERVO_ARRIBA 		0
+#define SERVO_ABAJO 		1
+#define PASOS_SERVO			37
+#define PASOSxCUADRO 		500
+#define CAPTURA_NORMAL		0
+#define CAPTURA_INVERTIDA	1
 
 /*Configuramos los handlers*/
 GPIO_Handler_t handlerOnBoardLed 			={0};
@@ -61,6 +63,8 @@ char recievedMsg[10]			={0};
 uint16_t contadorPasosMotores	=0;
 uint16_t contadorPasosServo		=0;
 int16_t pasosEnXY[2] 			={0};
+uint8_t conteoPosXArriba		=0;
+uint8_t conteoPosXAbajo			=0;
 
 //Las banderas
 uint8_t endStopXFlag			=1;
@@ -68,6 +72,7 @@ uint8_t endStopYFlag			=1;
 uint8_t iniciarJuego			=0;
 uint8_t movDiagonal				=0;
 uint8_t movCaballo				=0;
+uint8_t enroque 				=0;
 
 /*Headers de funciones*/
 void InitHardware (void);
@@ -78,6 +83,8 @@ void MovX (int16_t n_pasos);
 void MovY (int16_t n_pasos);
 void MovDiagonal(int16_t n_pasosX,int16_t n_pasosY);
 void MovCaballo(int16_t n_pasosX,int16_t n_pasosY);
+void Enroque(int16_t n_pasosReyX,char *mensaje);
+void Captura (char *mensaje, uint8_t tipo);
 uint16_t PasosxFilaYColumna(char filaColumna);
 void CalculoPasos (char *jugada,uint8_t etapa);
 void recibirInstruccion(void);
@@ -101,14 +108,6 @@ int main(void) {
 			GPIO_WritePin(&handlerEnableM1, 0);
 			GPIO_WritePin(&handlerEnableM2, 0);
 
-//			//Mantenemos un bucle mientras el usuario  indica que el servo debe o no bajarse
-//			while(USARTDataRecieved != 'y' || USARTDataRecieved != 'n'){
-//				__NOP();
-//			}
-//
-//			if(USARTDataRecieved == 'y'){
-//				ControlServo(SERVO_ABAJO);
-//			}
 
 			//Mantenemos un bucle mientras el usuario inicia el juego
 			while(USARTDataRecieved != ' '){
@@ -124,10 +123,24 @@ int main(void) {
 		/*Hacemos que el usuario ingrese su jugada en cada ciclo*/
 		recibirInstruccion();
 
+		/*Revisamos si se reinicio la partida*/
+		if (recievedMsg[5]=='#' || recievedMsg[6]=='#'){
+			//Bajamos la bandera de iniciar juego
+			iniciarJuego = 0;
+
+			//Volvemos a ejecutar el while (1)
+			continue;
+		}
+
+
 
 		/*Analizamos la jugada ingresada y movemos la pieza*/
+		/*Revisamos si hubo una captura normal y procesamos todo el movimiento*/
+
+
 
 		/*Se inicia la ETAPA 1 de agarrar la pieza*/
+
 		//Calculamos los pasos
 		CalculoPasos(recievedMsg, 1);
 
@@ -776,6 +789,437 @@ void MovCaballo(int16_t n_pasosX,int16_t n_pasosY){
 	}
 }//Fin funcion MovCaballo
 
+void Enroque(int16_t n_pasosReyX,char *mensaje){
+
+	/*El enroque se da si en el mensaje enviado por python
+	 * se encuentra el simbolo & para enroque corto y
+	 * @ para enroque largo
+	 */
+
+	if(mensaje[5] != '-' && mensaje[5] != '#'){
+		//Estamos en la funcion de enroque normal
+
+		if (mensaje[4] == '&'){
+			//Estamos en enroque corto
+
+			/*Primero debemos mover el rey*/
+			//y lo hacemos media casilla hacia arriba
+			MovY(PASOSxCUADRO/2);
+
+			//Luego, lo movemos la cantidad de pasos
+			//solicitados en X
+			MovX(n_pasosReyX);
+
+			//Finalmente, bajamos al rey media casilla
+			MovY(-PASOSxCUADRO/2);
+
+			//Soltamos al rey
+			ControlServo(SERVO_ABAJO);
+
+			/*Ahora, movemos la torre*/
+			//Llegamos hasta ella
+			MovX(PASOSxCUADRO);
+
+			//La sujetamos
+			ControlServo(SERVO_ARRIBA);
+
+			//Bajamos con ella media casilla
+			MovY(-PASOSxCUADRO/2);
+
+			//Nos desplazamos con ella hacia f1
+			MovX(-2*PASOSxCUADRO);
+
+			//La subimos medio cuadro
+			MovY(PASOSxCUADRO/2);
+
+			/*Subimos la bandera de enroque*/
+			enroque =1;
+
+		}
+		else if(mensaje[4] == '@'){
+			//Estamos en enroque largo
+
+			/*Primero debemos mover el rey*/
+			//y lo hacemos media casilla hacia arriba
+			MovY(PASOSxCUADRO/2);
+
+			//Luego, lo movemos la cantidad de pasos
+			//solicitados en X
+			MovX(n_pasosReyX);
+
+			//Finalmente, bajamos al rey media casilla
+			MovY(-PASOSxCUADRO/2);
+
+			//Soltamos al rey
+			ControlServo(SERVO_ABAJO);
+
+			/*Ahora, movemos la torre*/
+			//Llegamos hasta ella
+			MovX(-2*PASOSxCUADRO);
+
+			//La sujetamos
+			ControlServo(SERVO_ARRIBA);
+
+			//Bajamos con ella media casilla
+			MovY(-PASOSxCUADRO/2);
+
+			//Nos desplazamos con ella hacia d1
+			MovX(3*PASOSxCUADRO);
+
+			//La subimos medio cuadro
+			MovY(PASOSxCUADRO/2);
+
+			/*Subimos la bandera de enroque*/
+			enroque =1;
+
+
+		}
+		else{
+			enroque =0;
+		}
+	}
+	else if (mensaje[5] == '-'){
+		//Estamos en enroque invertido
+
+		if (mensaje[4] == '&'){
+			//Estamos en enroque corto
+
+			/*Primero debemos mover el rey*/
+			//y lo hacemos media casilla hacia arriba
+			MovY(PASOSxCUADRO/2);
+
+			//Luego, lo movemos la cantidad de pasos
+			//solicitados en X
+			MovX(n_pasosReyX);
+
+			//Finalmente, bajamos al rey media casilla
+			MovY(-PASOSxCUADRO/2);
+
+			//Soltamos al rey
+			ControlServo(SERVO_ABAJO);
+
+			/*Ahora, movemos la torre*/
+			//Llegamos hasta ella
+			MovX(PASOSxCUADRO);
+
+			//La sujetamos
+			ControlServo(SERVO_ARRIBA);
+
+			//Nos desplazamos con ella hacia h1
+			MovX(2*PASOSxCUADRO);
+
+			/*Subimos la bandera de enroque*/
+			enroque =1;
+
+		}
+		else if(mensaje[4] == '@'){
+			//Estamos en enroque largo
+
+			/*Primero debemos mover el rey*/
+			//y lo hacemos media casilla hacia arriba
+			MovY(PASOSxCUADRO/2);
+
+			//Luego, lo movemos la cantidad de pasos
+			//solicitados en X
+			MovX(n_pasosReyX);
+
+			//Finalmente, bajamos al rey media casilla
+			MovY(-PASOSxCUADRO/2);
+
+			//Soltamos al rey
+			ControlServo(SERVO_ABAJO);
+
+			/*Ahora, movemos la torre*/
+			//Llegamos hasta ella
+			MovX(-PASOSxCUADRO);
+
+			//La sujetamos
+			ControlServo(SERVO_ARRIBA);
+
+			//Nos desplazamos con ella hacia a1
+			MovX(-3*PASOSxCUADRO);
+
+			/*Subimos la bandera de enroque*/
+			enroque =1;
+
+		}
+		else{
+			enroque =0;
+		}
+	}
+}//Fin funcion Enroque
+
+
+void Captura (char *mensaje, uint8_t tipo){
+
+	int16_t pasosX 	=0;
+	int16_t pasosY 	=0;
+	int16_t posY	=0;
+	int16_t posX	=0;
+
+	if(mensaje[4] == 'x'){
+		//Hay una captura
+
+		switch(tipo){
+
+		case CAPTURA_NORMAL: {
+
+			if(mensaje[5] != '-' && mensaje[5] != '#'){
+				//Estamos en una captura normal
+
+				/*Primero, hacemos que el iman llegue hacia
+				 * donde se ubica la pieza a comer, la cual esta
+				 * en la posicion final de pieza de la jugada normal
+				 * */
+
+				//Hacemos el basicMove
+				BasicMove();
+
+				//calculamos el numero de pasos en X
+				pasosX = PasosxFilaYColumna(mensaje[2]);
+
+				//Ahora, calculamos el numero de pasos en Y
+				pasosY = PasosxFilaYColumna(mensaje[3]);
+
+				//Nos movemos primero en X
+				MovX(pasosX);
+
+				//Luego, nos movemos en Y
+				MovY(pasosY);
+
+				//Sujetamos la pieza
+				ControlServo(SERVO_ARRIBA);
+
+				//La desplazamos media casilla hacia la derecha
+				MovX(PASOSxCUADRO/2);
+
+				//Revisamos si la pieza esta en la parte mas alta
+				//o mas baja del tablero
+				if(pasosY >= 4*PASOSxCUADRO){
+					//Esta en la parte mas alta
+
+					posY = 8*PASOSxCUADRO - pasosY;
+
+					//Desplazamos la pieza hasta lo mas alto posible en y
+					MovY(posY);
+
+					//Ahora miramos cuanto se debe mover en x
+					posX = ((conteoPosXArriba-1)*PASOSxCUADRO/2) - pasosX;
+
+					//Desplazamos esa pieza hasta esa posicion
+					MovX(posX);
+
+					//La soltamos
+					ControlServo(SERVO_ABAJO);
+
+					//Aumentamos en 1 el contador de piezas arriba
+					conteoPosXArriba++;
+
+					//Volvemos a home
+					Home();
+
+				}
+				else{
+					//Esta es la parte mas baja
+
+					/*Vamos a desplazar la pieza hasta donde el endStopY lo permita*/
+					/*Ahora, bajamos la bandera en Y para
+					que inicie el movimiento en esta direccion.*/
+					endStopYFlag =0;
+
+					/*Hacemos que se mueva hacia abajo*/
+					GPIO_WritePin(&handlerDireccM1, 1); //CW
+					GPIO_WritePin(&handlerDireccM2, 0); //CCW
+
+					/*Activamos los enable de los drivers*/
+					GPIO_WritePin(&handlerEnableM1, 1);
+					GPIO_WritePin(&handlerEnableM2, 1);
+
+					/*Activamos la señales*/
+					enableOutput(&handlerPwmM1);
+					enableOutput(&handlerPwmM2);
+
+					//Mientras no cambie la bandera, el se mantiene en un bucle
+					while(!endStopYFlag){
+						__NOP();
+					}
+
+					/*Desactivamos el movimiento*/
+					disableOutput(&handlerPwmM1);
+					disableOutput(&handlerPwmM2);
+
+					//Ahora miramos cuanto se debe mover en x
+					posX = ((conteoPosXAbajo-1)*PASOSxCUADRO/2) - pasosX;
+
+					//Desplazamos esa pieza hasta esa posicion
+					MovX(posX);
+
+					//La soltamos
+					ControlServo(SERVO_ABAJO);
+
+					//Aumentamos en 1 el contador de piezas abajo
+					conteoPosXAbajo++;
+
+					//Volvemos a home
+					Home();
+
+				}
+				}
+
+			break;
+			}
+		case CAPTURA_INVERTIDA:{
+
+			if(mensaje[5] == '-'){
+
+				uint16_t casillaX =0;
+				uint16_t casillaY =0;
+
+				//Estamos en una captura invertida
+
+				/*Primero, hacemos que el iman llegue hacia
+				 * donde se ubica la pieza a 'des-comer', la cual esta
+				 * en la posicion final arriba o abajo del tablero
+				 * */
+
+				//Pero para verificar si la pieza esta arriba o abajo,
+				//debemos mirar el numero de pasos respecto a la casilla
+				//inicial de la ficha a retornar
+
+				//calculamos las posiciones de la casilla que va a ocupar
+				//la pieza 'des-comida'
+				casillaX = PasosxFilaYColumna(mensaje[0]);
+				casillaY = PasosxFilaYColumna(mensaje[1]);
+
+				//Hacemos el basicMove
+				BasicMove();
+
+				if (casillaY >= 4*PASOSxCUADRO){
+					//Esta en la parte mas alta
+
+					//Calculamos la posicion en Y
+					posY = 8*PASOSxCUADRO;
+
+					//Movemos en Y
+					MovY(posY);
+
+					//Calculamos la posicion en X
+					posX = (conteoPosXArriba -1)*PASOSxCUADRO/2;
+
+					//Movemos en X
+					MovX(posX);
+
+					//Sujetamos la pieza
+					ControlServo(SERVO_ARRIBA);
+
+					//Calculamos la cantidad de pasos que se va a mover
+					//para llegar al destino
+
+					pasosX = casillaX - posX;
+
+					//Movemos en x
+					MovX(pasosX);
+
+					//Calculamos la cantidad de pasos en Y
+					pasosY = casillaY - posY;
+
+					//Movemos en Y
+					MovY(pasosY);
+
+					//Movemos la pieza medio cuadro hacia la izquierda
+					MovX(-PASOSxCUADRO/2);
+
+					//Soltamos la pieza
+					ControlServo(SERVO_ABAJO);
+
+					//disminuimos el contador piezas arriba
+					conteoPosXArriba-- ;
+
+					//Volvemos a Home
+					Home();
+
+
+				}
+
+				else{
+					//Estamos en la parte mas baja
+					/*Vamos a desplazar la pieza hasta donde el endStopY lo permita*/
+					/*Ahora, bajamos la bandera en Y para
+					que inicie el movimiento en esta direccion.*/
+					endStopYFlag =0;
+
+					/*Hacemos que se mueva hacia abajo*/
+					GPIO_WritePin(&handlerDireccM1, 1); //CW
+					GPIO_WritePin(&handlerDireccM2, 0); //CCW
+
+					/*Activamos los enable de los drivers*/
+					GPIO_WritePin(&handlerEnableM1, 1);
+					GPIO_WritePin(&handlerEnableM2, 1);
+
+					/*Activamos la señales*/
+					enableOutput(&handlerPwmM1);
+					enableOutput(&handlerPwmM2);
+
+					//Mientras no cambie la bandera, el se mantiene en un bucle
+					while(!endStopYFlag){
+						__NOP();
+					}
+
+					/*Desactivamos el movimiento*/
+					disableOutput(&handlerPwmM1);
+					disableOutput(&handlerPwmM2);
+
+					//Calculamos la posicion en X
+					posX = (conteoPosXAbajo -1)*PASOSxCUADRO/2;
+
+					//Desplazamos hasta esa posicion
+					MovX(posX);
+
+					//Sujetamos la pieza
+					ControlServo(SERVO_ARRIBA);
+
+					//Calculamos la cantidad de pasos que se va a mover
+					//para llegar al destino
+
+					pasosX = casillaX - posX;
+
+					//Movemos en x
+					MovX(pasosX);
+
+					//Calculamos la cantidad de pasos en Y
+					pasosY = 385 + casillaY;
+
+					//Movemos en Y
+					MovY(pasosY);
+
+					//Movemos la pieza medio cuadro hacia la izquierda
+					MovX(-PASOSxCUADRO/2);
+
+					//Soltamos la pieza
+					ControlServo(SERVO_ABAJO);
+
+					//disminuimos en una unidad el contador de piezas abajo
+					conteoPosXAbajo--;
+
+					//Volvemos a Home
+					Home();
+
+				}
+
+			}//Fin del 'if' que valida la captura invertida
+
+			break;
+		}
+		default:{
+			__NOP();
+			break;
+		}
+
+		}//Fin de switch
+
+	}//Fin del 'if' que valida la funcion
+
+}//Fin de la funcion Captura
 
 uint16_t PasosxFilaYColumna (char filaColumna){
 	/*Esta funcion va a recibir el caracter que representa
