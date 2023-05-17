@@ -3,6 +3,8 @@ import chess.engine
 import time
 import re
 
+tiempoExtra = 0;
+
 def funcionesEspeciales (move,jugada):
 	#a esta funcion le ingresamos la jugada tipo 'Move'
 	#del engine o la jugada que le ingresa el usuario 
@@ -21,10 +23,12 @@ def funcionesEspeciales (move,jugada):
 	if jugadaSan == 'O-O':
 		print('enroque corto')
 		jugadaUCI = jugada + '&'
+		tiempoExtra = 1
 
 	elif jugadaSan == 'O-O-O':
 		print('enroque largo')
 		jugadaUCI = jugada + '@'
+		tiempoExtra = 1 
 
 	else:
 
@@ -34,6 +38,7 @@ def funcionesEspeciales (move,jugada):
 		if re.search('x',jugadaSan):
 			print('captura')
 			jugadaUCI = jugada + 'x'
+			tiempoExtra = 1
 	
 		else:
 			jugadaUCI = jugada
@@ -106,6 +111,12 @@ while True:
 		print('\nLas casillas que movió el engine fueron: ',result.move)
 		print(board)  
 
+		if tiempoExtra == 1:
+			print(tiempoExtra)
+			time.sleep(1)
+
+		tiempoExtra =0
+
 	#Inicia el juego
 	while not board.is_game_over():
 		entrada = input('\nIngrese movimiento: ')
@@ -140,6 +151,13 @@ while True:
 			revision = funcionesEspeciales(undoMove,jugadaAnterior)
 
 			print(revision + '-')
+
+
+			if tiempoExtra == 1:
+				print(tiempoExtra)
+				time.sleep(1)
+
+			tiempoExtra =0
 			
 			
 		elif entrada == 'redo':	#metodo para rehacer un movimiento del usuario
@@ -164,6 +182,13 @@ while True:
 
 				print(revision)
 
+
+				if tiempoExtra == 1:
+					print(tiempoExtra)
+					time.sleep(1)
+
+				tiempoExtra =0
+
 			except:
 				print('\nNo es posible rehacer el movimiento')
 				continue
@@ -186,6 +211,13 @@ while True:
 
 			print(revision)
 
+
+			if tiempoExtra == 1:
+				print(tiempoExtra)
+				time.sleep(1)
+
+			tiempoExtra =0
+
 			#Imprime los resultados del mov del usuario
 			print('Su jugada en notacion UCI fue: ',jugadaUsuario)
 			if board.is_check():
@@ -199,6 +231,13 @@ while True:
 			#Revisamos si la jugada es de captura o enroque
 			revision = funcionesEspeciales(result.move,jugadaEngine)
 			print(revision)
+
+				
+			if tiempoExtra == 1:
+				print(tiempoExtra)
+				time.sleep(1)
+
+			tiempoExtra =0
 
 			#ingresa el movimiento del engine a tablero de la libreria
 			board.push(result.move)

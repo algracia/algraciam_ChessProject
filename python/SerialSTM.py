@@ -9,7 +9,7 @@ ser = serial.Serial()
 ser.port = '/dev/ttyACM0'
 ser.baudrate = 115200
 ser.open()
-ser.timeout =5
+ser.timeout =3
 
 #definimos funcion para mandar datos al STM
 def EnviarDatos(string):
@@ -42,7 +42,7 @@ def funcionesEspeciales (move,jugada):
 	except:
 		jugadaSan = move
 
-	print('\nLa jugada en notacion alegraica fue: ',jugadaSan)
+	print('\nLa jugada en notacion algebraica fue: ',jugadaSan)
 
 	#Revisamos si hubo enroque y en caso tal, 
 	#se le añade una '& o @' para luego ser procesada
@@ -69,6 +69,32 @@ def funcionesEspeciales (move,jugada):
 
 
 	return jugadaUCI
+
+def DelayEjecucion (revision):
+
+	orden = ser.read_until('*',2).decode('utf8','ignore')
+
+	j=0
+	while (orden != '*'):
+
+		try:
+			captura = revision[4]
+		except:
+			captura = '\n'
+
+		if captura == 'x':
+			if(j >= 6):
+				break
+		else:
+			if(j >= 2):
+				break
+
+		orden = ser.read_until('*',2).decode('utf8','ignore')
+		time.sleep(1)
+		j+=1
+		continue
+
+	ser.close()
 		
 #hacemos que el programa se ejecute siempre
 while True:
@@ -97,11 +123,23 @@ while True:
 
 	#Ingresa parametros
 	input('\n\nPresione "ENTER" para iniciar')
+
+	#Seleccionamos la dificultad del engine
 	elo = input('Ingrese la dificultad en puntos Elo (500 - 1500): ')
+
+	while True:
+		try:
+			if (int(elo) > 1500) or (int(elo) < 500):
+				elo = input('Ingrese un valor valido (500 - 1500): ')
+			else:
+				break
+		except:
+			elo = input('Ingrese un valor valido (500 - 1500): ')	
+
 
 	#Llama y configura al Engine
 	engine = chess.engine.SimpleEngine.popen_uci('/usr/games/stockfish')
-	engine.configure({'UCI_LimitStrength': elo})
+	engine.configure({'UCI_LimitStrength': int(elo)})
 	limit = chess.engine.Limit(time=0.1)	
 
 	#Seleccionamos el lado con el que queremos jugar
@@ -110,17 +148,19 @@ while True:
 	while (side != 'n') and (side != 'b'):
 		side = input('Ingrese un valor valido (b/n): ')
 
-	#configura el tablero 
-	board = chess.Board()
-
 	#Le informamos al stm que el juego va a iniciar
 	ser.write(b' ')
 
+	#configura el tablero 
+	board = chess.Board()
+
 	#Muestra el tablero inicial
 	print(board) 
-	print(board.fen())
+
 	#Configuramos el primer movimiento segun el color que escogio el usuario
 	if side == 'n':
+
+		time.sleep(2)
 
 		#Ingresa el movimiento del engine
 		result = engine.play(board, limit)
@@ -128,7 +168,7 @@ while True:
 
 
 		#Revisamos si hubo captura o enroque
-		revision = funcionesEspeciales(result.move,jugadaEngine)
+		#revision = funcionesEspeciales(result.move,jugadaEngine)
 
 		#ingresa el movimiento del engine a tablero de la libreria
 		board.push(result.move)
@@ -138,7 +178,10 @@ while True:
 		print(board)  
 
 		#Enviamos la jugada al stm
-		EnviarDatos(revision)
+		EnviarDatos(jugadaEngine)
+
+		#Le damos cierto tiempo para que el tablero se mueva
+		#DelayEjecucion(revision)
 
 	#Inicia el juego
 	while not board.is_game_over():
@@ -175,6 +218,9 @@ while True:
 
 			#Enviamos los datos al stm
 			EnviarDatos(revision + '-')
+
+			#Le damos cierto tiempo para que el tablero se mueva
+			DelayEjecucion(revision)
 		
 			
 		elif entrada == 'redo':		#metodo para rehacer un movimiento del usuario
@@ -197,6 +243,9 @@ while True:
 				revision = funcionesEspeciales(redoMove,redoUCI)
 
 				EnviarDatos(revision)
+
+				#Le damos cierto tiempo para que el tablero se mueva
+				DelayEjecucion(revision)
 
 			except:
 				print('\nNo es posible rehacer el movimiento')
@@ -226,26 +275,31 @@ while True:
 			#Enviamos los datos al stm
 			EnviarDatos(revision)
 
+			#Le damos cierto tiempo para que el tablero se mueva
+			DelayEjecucion(revision)
 
-		time.sleep(0.5) #pausamos un momento el codigo
 
+			#Obtenemos la jugada del engine en string
+			jugadaEngine = result.move.uci()
 
-		jugadaEngine = result.move.uci()
+			#Revisamos si la jugada es de captura o enroque
+			revision = funcionesEspeciales(result.move,jugadaEngine)
 
-		#Revisamos si la jugada es de captura o enroque
-		revision = funcionesEspeciales(result.move,jugadaEngine)
+			#ingresa el movimiento del engine a tablero de la libreria
+			board.push(result.move)
 
-		#ingresa el movimiento del engine a tablero de la libreria
-		board.push(result.move)
+			#Imprime los resultados del movimiento del engine
+			print('La jugada del engine en UCI fue: ',jugadaEngine)
+			if board.is_check():
+				print('JAQUE')
+			print(board)  
 
-		#Imprime los resultados del movimiento del engine
-		print('La jugada del engine en UCI fue: ',jugadaEngine)
-		if board.is_check():
-			print('JAQUE')
-		print(board)  
+			#Enviamos los datos al stm
+			EnviarDatos(revision)
 
-		#Enviamos los datos al stm
-		EnviarDatos(revision)
+			#Le damos cierto tiempo para que el tablero se mueva
+			DelayEjecucion(revision)
+
 
 	engine.quit() 
 
@@ -254,7 +308,11 @@ while True:
 	else:
 		print('Juego Finalizado')
 
-	EnviarDatos(revision +'#')
+	try:
+		EnviarDatos(revision +'#')
+
+	except:
+		EnviarDatos('a1a1#')
 
 	juego = input('¿Quiere volver a jugar?(y/n): ')
 

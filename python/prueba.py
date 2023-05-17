@@ -1,10 +1,3 @@
-import re
+hola = 'hola'
 
-notacion = input('Ingrese la notacion fen: ')
-
-def Captura(fen):
-	info= re.findall("[^ ]+",fen)
-	filas = info[0].split('/')
-	print(filas)
-
-Captura(notacion)
+print(hola[3])

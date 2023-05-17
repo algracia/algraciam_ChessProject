@@ -124,7 +124,7 @@ int main(void) {
 		recibirInstruccion();
 
 		/*Revisamos si se reinicio la partida*/
-		if (recievedMsg[5]=='#' || recievedMsg[6]=='#'){
+		if (recievedMsg[4]=='#' || recievedMsg[5]=='#' || recievedMsg[6]=='#'){
 			//Bajamos la bandera de iniciar juego
 			iniciarJuego = 0;
 
@@ -136,7 +136,7 @@ int main(void) {
 
 		/*Analizamos la jugada ingresada y movemos la pieza*/
 		/*Revisamos si hubo una captura normal y procesamos todo el movimiento*/
-
+		Captura(recievedMsg, CAPTURA_NORMAL);
 
 
 		/*Se inicia la ETAPA 1 de agarrar la pieza*/
@@ -163,22 +163,30 @@ int main(void) {
 		//Calculamos los pasos
 		CalculoPasos(recievedMsg, 2);
 
-		//Se analiza si el movimiento sera de un caballo
-		MovCaballo(pasosEnXY[0], pasosEnXY[1]);
+		//Se analizar si el movimiento es de enroque
+		Enroque(pasosEnXY[0], recievedMsg);
 
-		//Si el movimiento no fue el de un caballo,
-		//Se analiza si el movimiento sera en diagonal
-		if(!(movCaballo)){
-			MovDiagonal(pasosEnXY[0], pasosEnXY[1]);
+		//si el movimiento no fue de enroque, entonces
+		//se analiza si fue de caballo
+		if(!(enroque)){
 
-			//Si el movimiento no fue en diagonal entonces
-			//Se mueve primero en X y luego en Y
-			if(!(movDiagonal)){
-				//Movemos en X
-				MovX(pasosEnXY[0]);
+			//Se analiza si el movimiento sera de un caballo
+			MovCaballo(pasosEnXY[0], pasosEnXY[1]);
 
-				//Movemos en Y
-				MovY(pasosEnXY[1]);
+			//Si el movimiento no fue el de un caballo,
+			//Se analiza si el movimiento sera en diagonal
+			if(!(movCaballo)){
+				MovDiagonal(pasosEnXY[0], pasosEnXY[1]);
+
+				//Si el movimiento no fue en diagonal entonces
+				//Se mueve primero en X y luego en Y
+				if(!(movDiagonal)){
+					//Movemos en X
+					MovX(pasosEnXY[0]);
+
+					//Movemos en Y
+					MovY(pasosEnXY[1]);
+				}
 			}
 		}
 
@@ -188,8 +196,17 @@ int main(void) {
 		/*Hacemos que el carro vaya a home en cada ciclo*/
 		Home();
 
+		/*Si hubo una captura inversa, entonces, luego de
+		 * regresar la pieza que 'come' a su posicion original
+		 * se ejecuta la funcion que retorna la pieza 'comida'
+		 */
+		Captura(recievedMsg, CAPTURA_INVERTIDA);
+
 		sprintf(bufferMsg,"\nMovimiento completado\n");
 		writeMsg(&handlerUSART2, bufferMsg);
+
+
+		writeChar(&handlerUSART2, '*');
 
 	}
 }
@@ -644,7 +661,7 @@ void MovDiagonal(int16_t n_pasosX,int16_t n_pasosY){
 
 			//hacemos un bucle hasta que se llegue
 			//al destino
-			pasosD = (2*n_pasosX);
+			pasosD = (2*n_pasosX) + PASOSxCUADRO;
 			while(!(contadorPasosMotores >= pasosD )){
 				__NOP();
 			}
@@ -725,7 +742,7 @@ void MovDiagonal(int16_t n_pasosX,int16_t n_pasosY){
 
 			//hacemos un bucle hasta que se llegue
 			//al destino
-			pasosD = -(2*n_pasosX);
+			pasosD = -(2*n_pasosX) + PASOSxCUADRO;
 			while(!(contadorPasosMotores >= pasosD)){
 				__NOP();
 			}
@@ -803,15 +820,10 @@ void Enroque(int16_t n_pasosReyX,char *mensaje){
 			//Estamos en enroque corto
 
 			/*Primero debemos mover el rey*/
-			//y lo hacemos media casilla hacia arriba
-			MovY(PASOSxCUADRO/2);
 
-			//Luego, lo movemos la cantidad de pasos
+			//lo movemos la cantidad de pasos
 			//solicitados en X
 			MovX(n_pasosReyX);
-
-			//Finalmente, bajamos al rey media casilla
-			MovY(-PASOSxCUADRO/2);
 
 			//Soltamos al rey
 			ControlServo(SERVO_ABAJO);
@@ -840,15 +852,10 @@ void Enroque(int16_t n_pasosReyX,char *mensaje){
 			//Estamos en enroque largo
 
 			/*Primero debemos mover el rey*/
-			//y lo hacemos media casilla hacia arriba
-			MovY(PASOSxCUADRO/2);
 
-			//Luego, lo movemos la cantidad de pasos
+			//lo movemos la cantidad de pasos
 			//solicitados en X
 			MovX(n_pasosReyX);
-
-			//Finalmente, bajamos al rey media casilla
-			MovY(-PASOSxCUADRO/2);
 
 			//Soltamos al rey
 			ControlServo(SERVO_ABAJO);
@@ -960,6 +967,15 @@ void Captura (char *mensaje, uint8_t tipo){
 	if(mensaje[4] == 'x'){
 		//Hay una captura
 
+		if(conteoPosXAbajo < 0){
+			conteoPosXAbajo =0;
+
+		}
+
+		if (conteoPosXArriba<0){
+			conteoPosXArriba =0;
+		}
+
 		switch(tipo){
 
 		case CAPTURA_NORMAL: {
@@ -998,7 +1014,9 @@ void Captura (char *mensaje, uint8_t tipo){
 				if(pasosY >= 4*PASOSxCUADRO){
 					//Esta en la parte mas alta
 
-					posY = 8*PASOSxCUADRO - pasosY;
+					//Calculamos los pasos en Y y movemos
+					//justo hasta el borde del tablero
+					posY = 8*PASOSxCUADRO - pasosY - PASOSxCUADRO/2;
 
 					//Desplazamos la pieza hasta lo mas alto posible en y
 					MovY(posY);
@@ -1008,6 +1026,9 @@ void Captura (char *mensaje, uint8_t tipo){
 
 					//Desplazamos esa pieza hasta esa posicion
 					MovX(posX);
+
+					//La desplazamos media casilla hasta donde debe estar
+					MovY(PASOSxCUADRO/2);
 
 					//La soltamos
 					ControlServo(SERVO_ABAJO);
@@ -1022,37 +1043,21 @@ void Captura (char *mensaje, uint8_t tipo){
 				else{
 					//Esta es la parte mas baja
 
-					/*Vamos a desplazar la pieza hasta donde el endStopY lo permita*/
-					/*Ahora, bajamos la bandera en Y para
-					que inicie el movimiento en esta direccion.*/
-					endStopYFlag =0;
+					//Calculamos los pasos en Y y movemos
+					//justo hasta el borde del tablero
+					posY = -PASOSxCUADRO -pasosY + PASOSxCUADRO/2;
 
-					/*Hacemos que se mueva hacia abajo*/
-					GPIO_WritePin(&handlerDireccM1, 1); //CW
-					GPIO_WritePin(&handlerDireccM2, 0); //CCW
-
-					/*Activamos los enable de los drivers*/
-					GPIO_WritePin(&handlerEnableM1, 1);
-					GPIO_WritePin(&handlerEnableM2, 1);
-
-					/*Activamos la señales*/
-					enableOutput(&handlerPwmM1);
-					enableOutput(&handlerPwmM2);
-
-					//Mientras no cambie la bandera, el se mantiene en un bucle
-					while(!endStopYFlag){
-						__NOP();
-					}
-
-					/*Desactivamos el movimiento*/
-					disableOutput(&handlerPwmM1);
-					disableOutput(&handlerPwmM2);
+					//Desplazamos la pieza hasta lo mas bajo posible en y
+					MovY(posY);
 
 					//Ahora miramos cuanto se debe mover en x
 					posX = ((conteoPosXAbajo-1)*PASOSxCUADRO/2) - pasosX;
 
 					//Desplazamos esa pieza hasta esa posicion
 					MovX(posX);
+
+					//La desplazamos media casilla hasta donde debe estar
+					MovY(-PASOSxCUADRO/2);
 
 					//La soltamos
 					ControlServo(SERVO_ABAJO);
@@ -1112,16 +1117,19 @@ void Captura (char *mensaje, uint8_t tipo){
 					//Sujetamos la pieza
 					ControlServo(SERVO_ARRIBA);
 
+					//La desplazamos hacia abajo media casilla
+					MovY(-PASOSxCUADRO/2);
+
 					//Calculamos la cantidad de pasos que se va a mover
 					//para llegar al destino
 
-					pasosX = casillaX - posX;
+					pasosX = casillaX - posX + (PASOSxCUADRO/2);
 
 					//Movemos en x
 					MovX(pasosX);
 
 					//Calculamos la cantidad de pasos en Y
-					pasosY = casillaY - posY;
+					pasosY = casillaY - posY + PASOSxCUADRO/2;
 
 					//Movemos en Y
 					MovY(pasosY);
@@ -1143,31 +1151,12 @@ void Captura (char *mensaje, uint8_t tipo){
 
 				else{
 					//Estamos en la parte mas baja
-					/*Vamos a desplazar la pieza hasta donde el endStopY lo permita*/
-					/*Ahora, bajamos la bandera en Y para
-					que inicie el movimiento en esta direccion.*/
-					endStopYFlag =0;
 
-					/*Hacemos que se mueva hacia abajo*/
-					GPIO_WritePin(&handlerDireccM1, 1); //CW
-					GPIO_WritePin(&handlerDireccM2, 0); //CCW
+					//Calculamos la posicion en Y
+					posY = -PASOSxCUADRO;
 
-					/*Activamos los enable de los drivers*/
-					GPIO_WritePin(&handlerEnableM1, 1);
-					GPIO_WritePin(&handlerEnableM2, 1);
-
-					/*Activamos la señales*/
-					enableOutput(&handlerPwmM1);
-					enableOutput(&handlerPwmM2);
-
-					//Mientras no cambie la bandera, el se mantiene en un bucle
-					while(!endStopYFlag){
-						__NOP();
-					}
-
-					/*Desactivamos el movimiento*/
-					disableOutput(&handlerPwmM1);
-					disableOutput(&handlerPwmM2);
+					//Movemos en Y
+					MovY(posY);
 
 					//Calculamos la posicion en X
 					posX = (conteoPosXAbajo -1)*PASOSxCUADRO/2;
@@ -1178,16 +1167,19 @@ void Captura (char *mensaje, uint8_t tipo){
 					//Sujetamos la pieza
 					ControlServo(SERVO_ARRIBA);
 
+					//La desplazamos hacia arriba media casilla
+					MovY(PASOSxCUADRO/2);
+
 					//Calculamos la cantidad de pasos que se va a mover
 					//para llegar al destino
 
-					pasosX = casillaX - posX;
+					pasosX = casillaX - posX + (PASOSxCUADRO/2);
 
 					//Movemos en x
 					MovX(pasosX);
 
 					//Calculamos la cantidad de pasos en Y
-					pasosY = 385 + casillaY;
+					pasosY = 390 + casillaY - (PASOSxCUADRO/2);
 
 					//Movemos en Y
 					MovY(pasosY);
@@ -1220,6 +1212,7 @@ void Captura (char *mensaje, uint8_t tipo){
 	}//Fin del 'if' que valida la funcion
 
 }//Fin de la funcion Captura
+
 
 uint16_t PasosxFilaYColumna (char filaColumna){
 	/*Esta funcion va a recibir el caracter que representa
