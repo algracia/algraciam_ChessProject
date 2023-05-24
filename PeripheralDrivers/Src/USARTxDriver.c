@@ -8,12 +8,14 @@
 #include <stm32f4xx.h>
 #include "USARTxDriver.h"
 
+char sendingData =0;
 /**
  * Configurando el puerto Serial...
  * Recordar que siempre se debe comenzar con activar la señal de reloj
  * del periferico que se está utilizando.
  */
 uint8_t auxRxData = '\0';
+uint8_t i =0;
 
 void USART_Config(USART_Handler_t *ptrUsartHandler){
 	/* 1. Activamos la señal de reloj que viene desde el BUS al que pertenece el periferico */
@@ -106,6 +108,10 @@ void USART_Config(USART_Handler_t *ptrUsartHandler){
 
 	// 2.5 Configuracion del Baudrate (SFR USART_BRR)
 	// Ver tabla de valores (Tabla 73), Frec = 16MHz, over8 = 0;
+
+	//Limpiamos el BRR por si las moscas*/
+	ptrUsartHandler->ptrUSARTx->BRR = 0;
+
 	if(ptrUsartHandler->USART_Config.USART_baudrate == USART_BAUDRATE_9600){
 		// El valor a cargar es 104.1875 -> Mantiza = 104,fraction = 0.1875
 		// Mantiza = 104 = 0x68, fraction = 16 * 0.1875 = 3
@@ -184,14 +190,6 @@ void USART_Config(USART_Handler_t *ptrUsartHandler){
 		ptrUsartHandler->ptrUSARTx->CR1 &= ~USART_CR1_RXNEIE;
 	}
 
-	//Segundo, si la interrupcion sera por TX
-	if(ptrUsartHandler->USART_Config.USART_enableIntTX == USART_TX_INTERRUP_ENABLE){
-		ptrUsartHandler->ptrUSARTx->CR1 |= USART_CR1_TXEIE;
-
-	}else{
-		ptrUsartHandler->ptrUSARTx->CR1 &= ~USART_CR1_TXEIE;
-	}
-
 
 	/* 5.0 Activamos el canal del sistema NVIC para que lea la interrupción*/
 	if(ptrUsartHandler->ptrUSARTx == USART1){
@@ -221,28 +219,154 @@ void USART_Config(USART_Handler_t *ptrUsartHandler){
 
 }//Fin de la funcion USART_Config
 
+/*Funcion para reasignar una configuracion de baudrate
+ * Esta funcion solo es necesario ingresarle la frecuencia
+ * a la que va el micro en MHz
+ */
+void ChangeUSART_BRR(USART_Handler_t *ptrUsartHandler,uint8_t PLLFreqMHz){
+	/*Primero debemos activar la unidad de punto flotante para esta operacion*/
+	SCB->CPACR |= (0XF << 20);
+
+	//Vamo a aplicar la  ecuacion para hallar el valor a cargar en el BRR
+	//Para cada Baudrate configurado (Con OVER8 =0)
+	uint32_t auxMantiza =0;
+	float auxFraccion =0;
+
+	uint16_t mantiza =0;
+	uint8_t fraccion =0;
+
+	switch(ptrUsartHandler ->USART_Config.USART_baudrate){
+
+	case USART_BAUDRATE_9600:{
+
+		/*Calculamos la mantiza*/
+		auxMantiza =(PLLFreqMHz * 1000000)/(16*9600);
+
+		/*Calculamos la fraccion*/
+		auxFraccion = ((((float)PLLFreqMHz * 1000000)/(16*9600)) - (float)auxMantiza)*16;
+
+		/*definimos la mantiza y la fraccion*/
+		mantiza = (uint16_t) auxMantiza;
+		fraccion = (uint8_t) auxFraccion;
+
+
+		/*Cargamos la mantiza*/
+		//Limpiamos esa parte del registro
+		ptrUsartHandler->ptrUSARTx->BRR &= ~(USART_BRR_DIV_Mantissa);
+
+		//Escribimos en el registro
+		ptrUsartHandler->ptrUSARTx->BRR |= (mantiza << USART_BRR_DIV_Mantissa_Pos);
+
+		/*Cargamos la fraccion*/
+		//Limpiamos esa parte del registro
+		ptrUsartHandler->ptrUSARTx->BRR &= ~(USART_BRR_DIV_Fraction);
+
+		//Escribimos en el registro
+		ptrUsartHandler->ptrUSARTx->BRR |= (fraccion << USART_BRR_DIV_Fraction_Pos);
+
+		break;
+
+	}
+	case USART_BAUDRATE_19200:{
+
+		/*Calculamos la mantiza*/
+		auxMantiza =(PLLFreqMHz * 1000000)/(16*19200);
+
+		/*Calculamos la fraccion*/
+		auxFraccion = ((((float)PLLFreqMHz * 1000000)/(16*19200)) - (float)auxMantiza)*16;
+
+		/*definimos la mantiza y la fraccion*/
+		mantiza = (uint16_t) auxMantiza;
+		fraccion = (uint8_t) auxFraccion;
+
+
+		/*Cargamos la mantiza*/
+		//Limpiamos esa parte del registro
+		ptrUsartHandler->ptrUSARTx->BRR &= ~(USART_BRR_DIV_Mantissa);
+
+		//Escribimos en el registro
+		ptrUsartHandler->ptrUSARTx->BRR |= (mantiza << USART_BRR_DIV_Mantissa_Pos);
+
+		/*Cargamos la fraccion*/
+		//Limpiamos esa parte del registro
+		ptrUsartHandler->ptrUSARTx->BRR &= ~(USART_BRR_DIV_Fraction);
+
+		//Escribimos en el registro
+		ptrUsartHandler->ptrUSARTx->BRR |= (fraccion << USART_BRR_DIV_Fraction_Pos);
+
+		break;
+
+	}
+
+	case USART_BAUDRATE_115200:{
+
+		/*Calculamos la mantiza*/
+		auxMantiza =(PLLFreqMHz * 1000000)/(16*115200);
+
+		/*Calculamos la fraccion*/
+		auxFraccion = ((((float)PLLFreqMHz * 1000000)/(16*115200)) - (float)auxMantiza)*16;
+
+		/*definimos la mantiza y la fraccion*/
+		mantiza = (uint16_t) auxMantiza;
+		fraccion = (uint8_t) auxFraccion;
+
+
+		/*Cargamos la mantiza*/
+		//Limpiamos esa parte del registro
+		ptrUsartHandler->ptrUSARTx->BRR &= ~(USART_BRR_DIV_Mantissa);
+
+		//Escribimos en el registro
+		ptrUsartHandler->ptrUSARTx->BRR |= (mantiza << USART_BRR_DIV_Mantissa_Pos);
+
+		/*Cargamos la fraccion*/
+		//Limpiamos esa parte del registro
+		ptrUsartHandler->ptrUSARTx->BRR &= ~(USART_BRR_DIV_Fraction);
+
+		//Escribimos en el registro
+		ptrUsartHandler->ptrUSARTx->BRR |= (fraccion << USART_BRR_DIV_Fraction_Pos);
+
+
+		break;
+	}
+
+	default:{
+		__NOP();
+		break;
+	}
+	}
+}//FIn funcion ChangeUSART
 
 
 /* funcion para escribir un solo char */
 char writeChar(USART_Handler_t *ptrUsartHandler, char dataToSend ){
-	while( !(ptrUsartHandler->ptrUSARTx->SR & USART_SR_TXE)){
-		__NOP();
-	}
-	ptrUsartHandler->ptrUSARTx->DR = dataToSend;
+	/*Actualizamos la variable que envia el mensaje y hacemos que sea igual
+	 * al caracter que queramos mandar
+	 */
+	sendingData = dataToSend;
 
-	return dataToSend;
+	/*Activamos la interrupciones por transmicion*/
+	ptrUsartHandler->ptrUSARTx->CR1 |= USART_CR1_TXEIE;
+
+//	while( !(ptrUsartHandler->ptrUSARTx->SR & USART_SR_TXE)){
+//		__NOP();
+//	}
+//	ptrUsartHandler->ptrUSARTx->DR = dataToSend;
+
+	return sendingData;
 }
 
 
 /* Funcion para escribir un mensaje de caracteres*/
 void writeMsg(USART_Handler_t *ptrUsartHandler, char *MsgToSend ){
-	while( !(ptrUsartHandler->ptrUSARTx->SR & USART_SR_TXE)){
-		__NOP();
-	}
-	uint8_t i =0;
+
+
+
+	i =0;
 	while(MsgToSend[i] != '\0'){
 	writeChar(ptrUsartHandler, MsgToSend[i]);
-	i++;
+//	sendingData = MsgToSend[i];
+//	/*Activamos la interrupciones por transmicion*/
+//	ptrUsartHandler->ptrUSARTx->CR1 |= USART_CR1_TXEIE;
 	}
 
 }
@@ -264,6 +388,19 @@ void USART1_IRQHandler (void){
 		auxRxData = (uint8_t) USART1->DR;
 		usart1Rx_Callback();
 	}
+	else if (USART1->SR & USART_SR_TXE){
+		/*Enviamos el dato*/
+		USART1->DR = sendingData;
+
+		/*Deshabilitamos la interrupcion por transmicion
+		 * luego de haber enviado el mensaje
+		 */
+		USART1->CR1 &= ~USART_CR1_TXEIE;
+
+		/*Aumentamos la variable de iteracion
+		 * en caso de enviar un mensaje*/
+		i++;
+	}
 }
 
 
@@ -273,6 +410,20 @@ void USART2_IRQHandler (void){
 		auxRxData = (uint8_t) USART2->DR;
 		usart2Rx_Callback();
 	}
+	else if (USART2->SR & USART_SR_TXE){
+		/*Enviamos el dato*/
+		USART2->DR = sendingData;
+
+		/*Deshabilitamos la interrupcion por transmicion
+		 * luego de haber enviado el mensaje
+		 */
+		USART2->CR1 &= ~USART_CR1_TXEIE;
+
+		/*Aumentamos la variable de iteracion
+		 * en caso de enviar un mensaje*/
+		i++;
+
+	}
 }
 
 void USART6_IRQHandler (void){
@@ -280,6 +431,20 @@ void USART6_IRQHandler (void){
 	if(USART6->SR & USART_SR_RXNE){
 		auxRxData = (uint8_t) USART6->DR;
 		usart6Rx_Callback();
+	}
+	else if (USART6->SR & USART_SR_TXE){
+		/*Enviamos el dato*/
+		USART6->DR = sendingData;
+
+		/*Deshabilitamos la interrupcion por transmicion
+		 * luego de haber enviado el mensaje
+		 */
+		USART6->CR1 &= ~USART_CR1_TXEIE;
+
+		/*Aumentamos la variable de iteracion
+		 * en caso de enviar un mensaje*/
+		i++;
+
 	}
 }
 

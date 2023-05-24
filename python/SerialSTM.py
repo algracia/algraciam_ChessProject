@@ -119,6 +119,8 @@ while True:
 
 	print('''\n* Los 'Jaque' no son necesario informarlos ya que el programa lo hace por si mismo''')
 
+	print('''\nAdemas de lo de la notacion, es importante mencionarle que usted cuenta con funciones especiales para deshacer un movimiento,\nrehacer un movimiento o salirse de la partida con los comando "undo", "redo" y "quit" respectivamente''')
+
 	print('''\n\nEso es todo lo que hay que tener presente respecto a la notacion algebraica, ¡Disfrute del juego!''')
 
 	#Ingresa parametros
@@ -280,7 +282,11 @@ while True:
 
 
 			#Obtenemos la jugada del engine en string
-			jugadaEngine = result.move.uci()
+			try:
+				jugadaEngine = result.move.uci()
+				
+			except:
+				continue
 
 			#Revisamos si la jugada es de captura o enroque
 			revision = funcionesEspeciales(result.move,jugadaEngine)

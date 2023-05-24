@@ -14,6 +14,10 @@
 #include "GPIOxDriver.h"
 #include "BasicTimer.h"
 #include "ExtiDriver.h"
+#include "USARTxDriver.h"
+#include "SysTickDriver.h"
+#include "PwmDriver.h"
+#include "I2CDriver.h"
 
 
 int main(void) {
