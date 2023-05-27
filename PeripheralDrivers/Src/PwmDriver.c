@@ -183,7 +183,8 @@ void pwm_Config(PWM_Handler_t *ptrPwmHandler){
 	}
 
 	default: {
-		__NOP();
+		ptrPwmHandler->ptrTIMx->DIER &= ~TIM_DIER_UIE;
+		break;
 	}
 	}//Fin del switch case
 

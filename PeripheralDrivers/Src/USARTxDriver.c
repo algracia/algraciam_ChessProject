@@ -224,6 +224,7 @@ void USART_Config(USART_Handler_t *ptrUsartHandler){
 /* funcion para escribir un solo char */
 char writeChar(USART_Handler_t *ptrUsartHandler, char dataToSend ){
 
+
 	/*Actualizamos la variable que envia el mensaje y hacemos que sea igual
 	 * al caracter que queramos mandar
 	 */
@@ -239,6 +240,7 @@ char writeChar(USART_Handler_t *ptrUsartHandler, char dataToSend ){
 	 * luego de haber enviado el mensaje
 	 */
 	ptrUsartHandler->ptrUSARTx->CR1 &= ~USART_CR1_TXEIE;
+
 
 	return sendingData;
 }

@@ -37,14 +37,22 @@
 #define ACCEL_RANGE_8g			0b10
 #define ACCEL_RANGE_16g			0b11
 
+#define GRAVEDAD				9.78
+
 
 /*Headers de funciones*/
 void Accel_Config(I2C_Handler_t *ptrHandlerI2C);
 void ChangeAccelMode(I2C_Handler_t *ptrHandlerI2C, uint8_t accelMode);
 uint8_t GetAccelMode(I2C_Handler_t *ptrHandlerI2C);
+void ChangeAccelRange(I2C_Handler_t *ptrHandlerI2C,uint8_t accelRange);
+uint8_t GetAccelRange(I2C_Handler_t *ptrHandlerI2C);
+
 uint8_t GetAccelID(I2C_Handler_t *ptrHandlerI2C);
-int16_t GetAccelXDATA(I2C_Handler_t *ptrHandlerI2C);
-int16_t GetAccelYDATA(I2C_Handler_t *ptrHandlerI2C);
-int16_t GetAccelZDATA(I2C_Handler_t *ptrHandlerI2C);
+float GetAccelXDATA(I2C_Handler_t *ptrHandlerI2C);
+float GetAccelYDATA(I2C_Handler_t *ptrHandlerI2C);
+float GetAccelZDATA(I2C_Handler_t *ptrHandlerI2C);
+
+float ConvertUnits(I2C_Handler_t *ptrHandlerI2C, int16_t data);
+
 
 #endif /* INC_ADXL345DRIVER_H_ */

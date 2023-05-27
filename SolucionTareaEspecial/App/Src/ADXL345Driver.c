@@ -10,6 +10,10 @@
 #include "I2CDriver.h"
 
 void Accel_Config(I2C_Handler_t *ptrHandlerI2C){
+
+	/*Vamos a activar la unidad de punto flotante para ciertos calculos*/
+	SCB->CPACR |= (0XF << 20);
+
 	//Aqui simplemente configuramos valores por defecto del
 	//Data Rate y el rango de las medidas
 
@@ -66,6 +70,8 @@ uint8_t GetAccelMode(I2C_Handler_t *ptrHandlerI2C){
 	 return accelModeR;
 }
 
+
+
 /*Funcion para recibir el ID del acelerometro y verificar*/
 uint8_t GetAccelID(I2C_Handler_t *ptrHandlerI2C){
 
@@ -75,7 +81,7 @@ uint8_t GetAccelID(I2C_Handler_t *ptrHandlerI2C){
 }
 
 /*Funcion para recibir datos en X*/
-int16_t GetAccelXDATA(I2C_Handler_t *ptrHandlerI2C){
+float GetAccelXDATA(I2C_Handler_t *ptrHandlerI2C){
 
 	//Leemos los registros con los datos instantaneos en X
 	uint8_t dataX0 = i2c_readSingleRegister(ptrHandlerI2C, ACCEL_DATAX0);
@@ -84,11 +90,14 @@ int16_t GetAccelXDATA(I2C_Handler_t *ptrHandlerI2C){
 	//Como estos son complementarios, los montamos ambos en una misma variable
 	int16_t dataX = (dataX1 << 8) | dataX0;
 
-	return dataX;
+	//Convertimos el dato al sistema metrico
+	float convertedDataX = ConvertUnits(ptrHandlerI2C, dataX);
+
+	return convertedDataX;
 }
 
 /*Funcion para recibir datos en Y*/
-int16_t GetAccelYDATA(I2C_Handler_t *ptrHandlerI2C){
+float GetAccelYDATA(I2C_Handler_t *ptrHandlerI2C){
 
 	//Leemos los registros con los datos instantaneos en Y
 	uint8_t dataY0 = i2c_readSingleRegister(ptrHandlerI2C, ACCEL_DATAY0);
@@ -97,11 +106,14 @@ int16_t GetAccelYDATA(I2C_Handler_t *ptrHandlerI2C){
 	//Como estos son complementarios, los montamos ambos en una misma variable
 	int16_t dataY = (dataY1 << 8) | dataY0;
 
-	return dataY;
+	//Convertimos el dato al sistema metrico
+	float convertedDataY = ConvertUnits(ptrHandlerI2C, dataY);
+
+	return convertedDataY;
 }
 
 /*Funcion para recibir datos en Z*/
-int16_t GetAccelZDATA(I2C_Handler_t *ptrHandlerI2C){
+float GetAccelZDATA(I2C_Handler_t *ptrHandlerI2C){
 
 	//Leemos los registros con los datos instantaneos en Z
 	uint8_t dataZ0 = i2c_readSingleRegister(ptrHandlerI2C, ACCEL_DATAZ0);
@@ -110,6 +122,71 @@ int16_t GetAccelZDATA(I2C_Handler_t *ptrHandlerI2C){
 	//Como estos son complementarios, los montamos ambos en una misma variable
 	int16_t dataZ = (dataZ1 << 8) | dataZ0;
 
-	return dataZ;
+	//Convertimos el dato al sistema metrico
+	float convertedDataZ = ConvertUnits(ptrHandlerI2C, dataZ);
+
+	return convertedDataZ;
+}
+
+/*Funcion para cambiar el rango del acelerometro*/
+void ChangeAccelRange(I2C_Handler_t *ptrHandlerI2C,uint8_t accelRange){
+
+	i2c_writeSingleRegister(ptrHandlerI2C, ACCEL_DATA_FORMAT,accelRange);
+}
+
+/*Funcion para leer el rango en el que esta configurado el acelerometro*/
+uint8_t GetAccelRange(I2C_Handler_t *ptrHandlerI2C){
+
+	//Leemos el registro en el que se configura el rango
+	 uint8_t accelRangeR= i2c_readSingleRegister(ptrHandlerI2C, ACCEL_DATA_FORMAT);
+
+	//Ahora, aplicamos una mascara para extraer solo los bits que nos interesa
+	//analizar de este registro
+	 accelRangeR &= (0b11 << 0); //Extraemos el valor
+
+	 return accelRangeR;
+}
+
+/*Funcion para convertir los datos al sistema metrico*/
+float ConvertUnits(I2C_Handler_t *ptrHandlerI2C, int16_t data){
+
+	//Todas las conversiones seran en terminos de g (9,78 m/s^2)
+	float dataConverted = 0;
+
+	//Hacemos un switch case para cada configuracion del rango
+	//del acelerometro ya que cada uno tendra su propia conversion de g
+	switch(GetAccelRange(ptrHandlerI2C)){
+
+	case ACCEL_RANGE_2g:{
+
+		dataConverted = ((float)data/256) * GRAVEDAD;
+		break;
+	}
+
+	case ACCEL_RANGE_4g:{
+
+		dataConverted = ((float)data/128) * GRAVEDAD;
+		break;
+	}
+
+	case ACCEL_RANGE_8g:{
+
+		dataConverted = ((float)data/64) * GRAVEDAD;
+		break;
+	}
+
+	case ACCEL_RANGE_16g:{
+
+		dataConverted = ((float)data/32) * GRAVEDAD;
+		break;
+	}
+
+	default:{
+		__NOP();
+		break;
+	}
+	}
+
+	return dataConverted;
 }
 

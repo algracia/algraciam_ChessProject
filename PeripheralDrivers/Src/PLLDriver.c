@@ -11,6 +11,10 @@
 
 void configPLL(uint8_t PLLN, uint8_t PLLP){
 
+	/*Se va activar la unidad de punto flotante para esta
+	 * ya que sera util en varias funciones de este driver*/
+	SCB->CPACR |= (0XF << 20);
+
 	/*1. Deshabilitamos el PLL para poderlo configurar*/
 	RCC->CR &= ~RCC_CR_PLLON;
 
@@ -181,8 +185,6 @@ uint8_t getPLLFrequency(uint8_t PLLN, uint8_t PLLP){
   segun la frecuencia que  se le ingrese
  */
 void ChangeUSART_BRR(USART_Handler_t *ptrUsartHandler,uint8_t PLLFreqMHz){
-	/*Primero debemos activar la unidad de punto flotante para esta operacion*/
-	SCB->CPACR |= (0XF << 20);
 
 	//Vamo a aplicar la  ecuacion para hallar el valor a cargar en el BRR
 	//Para cada Baudrate configurado (Con OVER8 =0)
