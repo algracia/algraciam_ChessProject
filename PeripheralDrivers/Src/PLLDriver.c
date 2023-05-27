@@ -7,8 +7,9 @@
 
 #include <stm32f4xx.h>
 #include "PLLDriver.h"
+#include "USARTxDriver.h"
 
-void configPLL(void){
+void configPLL(uint8_t PLLN, uint8_t PLLP){
 
 	/*1. Deshabilitamos el PLL para poderlo configurar*/
 	RCC->CR &= ~RCC_CR_PLLON;
@@ -40,7 +41,7 @@ void configPLL(void){
 	RCC->PLLCFGR &= ~RCC_PLLCFGR_PLLN;
 
 	//Cargamos la configuracion
-	RCC->PLLCFGR |= (HSI_80MHz_PLLN << RCC_PLLCFGR_PLLN_Pos);
+	RCC->PLLCFGR |= (PLLN << RCC_PLLCFGR_PLLN_Pos);
 
 
 	/*5. Cargamos el valor del PLLP siguiendo la formula:
@@ -53,6 +54,35 @@ void configPLL(void){
 	 */
 	//Limpiamos primero esa posicion del registro
 	RCC->PLLCFGR &= ~RCC_PLLCFGR_PLLP;
+
+	//Realizamos un switch para cada caso del PLLP
+	switch(PLLP){
+
+	case 2:{
+		//Para este caso, PLLP = 0b00
+		RCC->PLLCFGR &= ~RCC_PLLCFGR_PLLP;
+		break;
+	}
+	case 4:{
+		//Para este caso, PLLP = 0b01
+		RCC->PLLCFGR |= RCC_PLLCFGR_PLLP_0;
+		break;
+	}
+	case 6:{
+		//Para este caso, PLLP = 0b10
+		RCC->PLLCFGR |= RCC_PLLCFGR_PLLP_1;
+		break;
+	}
+	case 8:{
+		//Para este caso, PLLP = 0b11
+		RCC->PLLCFGR |= RCC_PLLCFGR_PLLP;
+		break;
+	}
+	default:{
+		__NOP();
+		break;
+	}
+	}
 
 	/*6. Ahora, configuramos la latencia de la memoria FLASH para que todo funcione*/
 	//Primero limpiamos la parte del registro
@@ -77,7 +107,7 @@ void configPLL(void){
 	RCC->CFGR &= ~RCC_CFGR_MCO1PRE;
 
 	//Configuramos esa parte del registro
-	RCC->CFGR |= (0b111 << RCC_CFGR_MCO1PRE_Pos);
+	RCC->CFGR |= (0b110 << RCC_CFGR_MCO1PRE_Pos);
 
 
 	/*8. Activamos el PLL*/
@@ -105,8 +135,14 @@ void configPLL(void){
 	 * Esto implica: PPRE1 = 0b100
 	 */
 
-	//Por si las moscas, configuramos el preescaler del AHB1
+	//Por si las moscas, configuramos el preescaler del AHB1 y del APB2
+	//De modo que su frecuencia quede 1:1
+
+	//Para el AHB1
 	RCC->CFGR &= ~RCC_CFGR_HPRE;
+
+	//Para el APB2
+	RCC->CFGR &= ~RCC_CFGR_PPRE2;
 
 	//Limpiamos los bits del PPRE1
 	RCC->CFGR &= ~RCC_CFGR_PPRE1;
@@ -115,9 +151,144 @@ void configPLL(void){
 	RCC->CFGR |= RCC_CFGR_PPRE1_2;
 
 
-}
+}//Fin funcion PLLConfig
 
-//uint8_t getConfigPLL(void){
-//
-//
-//}
+uint8_t getPLLFrequency(uint8_t PLLN, uint8_t PLLP){
+	/*Creamos una funcion que calcule la frecuencia a la que esta el PLL
+	 * segun los valores de PLLN y PLLP que este.
+	 *
+	 * Solo sera con estos valores ya que como siempre se va a usar el HSI
+	 * PLLM tendra un valor fijo y por ende la VCOinput siempre sera de 2MHz
+	 *
+	 * En general, la formula completa cambiar la frecuencia del micro es:
+	 * PLL output clock frequency = (HSIFrequency * PLLN)/(PLLM/PLLP)
+	 *
+	 * pero como HSIFrequency/PLLM = VCO input frequency = 2MHz
+	 *
+	 * -> PLL output clock frequency = 2*(PLLN/PLLP)
+	 */
+	uint8_t PLLOutFrequency = 0;
+
+	PLLOutFrequency = 2*(PLLN/PLLP);
+
+	return PLLOutFrequency;
+
+
+}//Fin funcion getPLLFrequency
+
+
+/*Creamos una funcion que va a calcular y cambiar los valores del BRR del USART
+  segun la frecuencia que  se le ingrese
+ */
+void ChangeUSART_BRR(USART_Handler_t *ptrUsartHandler,uint8_t PLLFreqMHz){
+	/*Primero debemos activar la unidad de punto flotante para esta operacion*/
+	SCB->CPACR |= (0XF << 20);
+
+	//Vamo a aplicar la  ecuacion para hallar el valor a cargar en el BRR
+	//Para cada Baudrate configurado (Con OVER8 =0)
+	uint32_t auxMantiza =0;
+	float auxFraccion =0;
+
+	uint16_t mantiza =0;
+	uint8_t fraccion =0;
+
+	switch(ptrUsartHandler ->USART_Config.USART_baudrate){
+
+	case USART_BAUDRATE_9600:{
+
+		/*Calculamos la mantiza*/
+		auxMantiza =(PLLFreqMHz * 1000000)/(16*9600);
+
+		/*Calculamos la fraccion*/
+		auxFraccion = ((((float)PLLFreqMHz * 1000000)/(16*9600)) - (float)auxMantiza)*16;
+
+		/*definimos la mantiza y la fraccion*/
+		mantiza = (uint16_t) auxMantiza;
+		fraccion = (uint8_t) auxFraccion;
+
+
+		/*Cargamos la mantiza*/
+		//Limpiamos esa parte del registro
+		ptrUsartHandler->ptrUSARTx->BRR &= ~(USART_BRR_DIV_Mantissa);
+
+		//Escribimos en el registro
+		ptrUsartHandler->ptrUSARTx->BRR |= (mantiza << USART_BRR_DIV_Mantissa_Pos);
+
+		/*Cargamos la fraccion*/
+		//Limpiamos esa parte del registro
+		ptrUsartHandler->ptrUSARTx->BRR &= ~(USART_BRR_DIV_Fraction);
+
+		//Escribimos en el registro
+		ptrUsartHandler->ptrUSARTx->BRR |= (fraccion << USART_BRR_DIV_Fraction_Pos);
+
+		break;
+
+	}
+	case USART_BAUDRATE_19200:{
+
+		/*Calculamos la mantiza*/
+		auxMantiza =(PLLFreqMHz * 1000000)/(16*19200);
+
+		/*Calculamos la fraccion*/
+		auxFraccion = ((((float)PLLFreqMHz * 1000000)/(16*19200)) - (float)auxMantiza)*16;
+
+		/*definimos la mantiza y la fraccion*/
+		mantiza = (uint16_t) auxMantiza;
+		fraccion = (uint8_t) auxFraccion;
+
+
+		/*Cargamos la mantiza*/
+		//Limpiamos esa parte del registro
+		ptrUsartHandler->ptrUSARTx->BRR &= ~(USART_BRR_DIV_Mantissa);
+
+		//Escribimos en el registro
+		ptrUsartHandler->ptrUSARTx->BRR |= (mantiza << USART_BRR_DIV_Mantissa_Pos);
+
+		/*Cargamos la fraccion*/
+		//Limpiamos esa parte del registro
+		ptrUsartHandler->ptrUSARTx->BRR &= ~(USART_BRR_DIV_Fraction);
+
+		//Escribimos en el registro
+		ptrUsartHandler->ptrUSARTx->BRR |= (fraccion << USART_BRR_DIV_Fraction_Pos);
+
+		break;
+
+	}
+
+	case USART_BAUDRATE_115200:{
+
+		/*Calculamos la mantiza*/
+		auxMantiza =(PLLFreqMHz * 1000000)/(16*115200);
+
+		/*Calculamos la fraccion*/
+		auxFraccion = ((((float)PLLFreqMHz * 1000000)/(16*115200)) - (float)auxMantiza)*16;
+
+		/*definimos la mantiza y la fraccion*/
+		mantiza = (uint16_t) auxMantiza;
+		fraccion = (uint8_t) auxFraccion;
+
+
+		/*Cargamos la mantiza*/
+		//Limpiamos esa parte del registro
+		ptrUsartHandler->ptrUSARTx->BRR &= ~(USART_BRR_DIV_Mantissa);
+
+		//Escribimos en el registro
+		ptrUsartHandler->ptrUSARTx->BRR |= (mantiza << USART_BRR_DIV_Mantissa_Pos);
+
+		/*Cargamos la fraccion*/
+		//Limpiamos esa parte del registro
+		ptrUsartHandler->ptrUSARTx->BRR &= ~(USART_BRR_DIV_Fraction);
+
+		//Escribimos en el registro
+		ptrUsartHandler->ptrUSARTx->BRR |= (fraccion << USART_BRR_DIV_Fraction_Pos);
+
+
+		break;
+	}
+
+	default:{
+		__NOP();
+		break;
+	}
+	}
+}//FIn funcion ChangeUSART

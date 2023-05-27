@@ -79,7 +79,6 @@ typedef struct
 void USART_Config(USART_Handler_t *ptrUsartHandler);
 char writeChar(USART_Handler_t *ptrUsartHandler, char dataToSend );
 void writeMsg(USART_Handler_t *ptrUsartHandler, char *MsgToSend);
-void ChangeUSART_BRR(USART_Handler_t *ptrUsartHandler,uint8_t PLLFreqMHz);
 
 uint8_t getRxData(void);
 

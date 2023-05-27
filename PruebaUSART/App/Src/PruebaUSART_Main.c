@@ -28,6 +28,7 @@ uint8_t sendControl 		=0;
 uint8_t USARTDataRecieved 	=0;
 char msg[] 					= "Prueba del USART\n";
 char bufferMsg[64] 			={0};
+char recievedMsg[100]	={0};
 uint8_t i =0;
 
 void InitHardware (void);
