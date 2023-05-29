@@ -8,6 +8,7 @@
 #include <stm32f4xx.h>
 #include "PLLDriver.h"
 #include "USARTxDriver.h"
+#include "I2CDriver.h"
 
 void configPLL(uint8_t PLLN, uint8_t PLLP){
 
@@ -184,7 +185,7 @@ uint8_t getPLLFrequency(uint8_t PLLN, uint8_t PLLP){
 /*Creamos una funcion que va a calcular y cambiar los valores del BRR del USART
   segun la frecuencia que  se le ingrese
  */
-void ChangeUSART_BRR(USART_Handler_t *ptrUsartHandler,uint8_t PLLFreqMHz){
+void ChangeUSART_BRR(USART_Handler_t *ptrUsartHandler,uint8_t BusFreqMHz){
 
 	//Vamo a aplicar la  ecuacion para hallar el valor a cargar en el BRR
 	//Para cada Baudrate configurado (Con OVER8 =0)
@@ -199,10 +200,10 @@ void ChangeUSART_BRR(USART_Handler_t *ptrUsartHandler,uint8_t PLLFreqMHz){
 	case USART_BAUDRATE_9600:{
 
 		/*Calculamos la mantiza*/
-		auxMantiza =(PLLFreqMHz * 1000000)/(16*9600);
+		auxMantiza =(BusFreqMHz * 1000000)/(16*9600);
 
 		/*Calculamos la fraccion*/
-		auxFraccion = ((((float)PLLFreqMHz * 1000000)/(16*9600)) - (float)auxMantiza)*16;
+		auxFraccion = ((((float)BusFreqMHz * 1000000)/(16*9600)) - (float)auxMantiza)*16;
 
 		/*definimos la mantiza y la fraccion*/
 		mantiza = (uint16_t) auxMantiza;
@@ -229,10 +230,10 @@ void ChangeUSART_BRR(USART_Handler_t *ptrUsartHandler,uint8_t PLLFreqMHz){
 	case USART_BAUDRATE_19200:{
 
 		/*Calculamos la mantiza*/
-		auxMantiza =(PLLFreqMHz * 1000000)/(16*19200);
+		auxMantiza =(BusFreqMHz * 1000000)/(16*19200);
 
 		/*Calculamos la fraccion*/
-		auxFraccion = ((((float)PLLFreqMHz * 1000000)/(16*19200)) - (float)auxMantiza)*16;
+		auxFraccion = ((((float)BusFreqMHz * 1000000)/(16*19200)) - (float)auxMantiza)*16;
 
 		/*definimos la mantiza y la fraccion*/
 		mantiza = (uint16_t) auxMantiza;
@@ -260,10 +261,10 @@ void ChangeUSART_BRR(USART_Handler_t *ptrUsartHandler,uint8_t PLLFreqMHz){
 	case USART_BAUDRATE_115200:{
 
 		/*Calculamos la mantiza*/
-		auxMantiza =(PLLFreqMHz * 1000000)/(16*115200);
+		auxMantiza =(BusFreqMHz * 1000000)/(16*115200);
 
 		/*Calculamos la fraccion*/
-		auxFraccion = ((((float)PLLFreqMHz * 1000000)/(16*115200)) - (float)auxMantiza)*16;
+		auxFraccion = ((((float)BusFreqMHz * 1000000)/(16*115200)) - (float)auxMantiza)*16;
 
 		/*definimos la mantiza y la fraccion*/
 		mantiza = (uint16_t) auxMantiza;
@@ -294,3 +295,66 @@ void ChangeUSART_BRR(USART_Handler_t *ptrUsartHandler,uint8_t PLLFreqMHz){
 	}
 	}
 }//FIn funcion ChangeUSART
+
+/*Funcion para ajustar el I2C a la frecuencia  del PLL*/
+void ChangeClockI2C(I2C_Handler_t *ptrHandlerI2C,uint8_t BusFreqMHz){
+
+	/*Desactivamos el modulo I2C para modificarlo*/
+	ptrHandlerI2C->ptrI2Cx->CR1 &= ~I2C_CR1_PE;
+
+	/*Indicamos cual es la velocidad del reloj del bus al cual esta conectado*/
+	ptrHandlerI2C->ptrI2Cx->CR2 &= ~I2C_CR2_FREQ; //Borramos la configuracion previa
+	ptrHandlerI2C->ptrI2Cx->CR2 |= (BusFreqMHz << I2C_CR2_FREQ_Pos);
+
+	/*Ahora vamos a configurar el CCR y el TRISE*/
+	//Limpiamos las partes que nos interesan de estos registros
+	ptrHandlerI2C->ptrI2Cx->CCR &= ~I2C_CCR_CCR;
+	ptrHandlerI2C->ptrI2Cx->TRISE &= ~I2C_TRISE_TRISE;
+
+	//Definimos una variables utiles
+	float TPCLK1 = 1000/BusFreqMHz; //Esto da el periodo de la señal del bus en ns
+	uint16_t CCR =0;
+	uint8_t TRISE =0;
+
+	switch(ptrHandlerI2C->modeI2C){
+
+	case I2C_MODE_SM:{
+		//Calculamos el CCR
+		CCR = (uint16_t) 5000/TPCLK1;
+
+		//Calculamos el TRISE
+		TRISE = (uint8_t) (1000/TPCLK1) + 1;
+
+		//Cargamos ambos valores
+		ptrHandlerI2C->ptrI2Cx->CCR |= (CCR << I2C_CCR_CCR_Pos);
+		ptrHandlerI2C->ptrI2Cx->TRISE |= (TRISE << I2C_TRISE_TRISE_Pos);
+		break;
+	}
+
+	case I2C_MODE_FM:{
+		//Calculamos el CCR
+		CCR = (uint16_t) 2500/(3*TPCLK1);
+
+		//Calculamos el TRISE
+		TRISE = (uint8_t) (300/TPCLK1) + 1;
+
+		//Cargamos ambos valores
+		ptrHandlerI2C->ptrI2Cx->CCR |= (CCR << I2C_CCR_CCR_Pos);
+		ptrHandlerI2C->ptrI2Cx->TRISE |= (TRISE << I2C_TRISE_TRISE_Pos);
+		break;
+	}
+	default:{
+		//Seleccionamos el modo estandar
+		ptrHandlerI2C->ptrI2Cx->CCR &= ~I2C_CCR_FS;
+
+		/*En este caso, haremos que el default sea la conf SM de 16MHz*/
+		ptrHandlerI2C->ptrI2Cx->CCR |= (I2C_MODE_SM_SPEED_100KHz << I2C_CCR_CCR_Pos);
+		ptrHandlerI2C->ptrI2Cx->TRISE |= I2C_MAX_RISE_TIME_SM;
+		break;
+	}
+	}
+
+	/*Finalmente activamos nuevamente el I2C*/
+	ptrHandlerI2C->ptrI2Cx->CR1 |= I2C_CR1_PE;
+
+}//Fin funcion ChangeClockI2C

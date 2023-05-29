@@ -10,6 +10,7 @@
 
 #include <stm32f4xx.h>
 #include "USARTxDriver.h"
+#include "I2CDriver.h"
 
 #define HSI_PLLM		8
 #define HSI_80MHz_PLLN	80
@@ -17,7 +18,7 @@
 
 void configPLL(uint8_t PLLN, uint8_t PLLP);
 uint8_t getPLLFrequency(uint8_t PLLN, uint8_t PLLP);
-void ChangeUSART_BRR(USART_Handler_t *ptrUsartHandler,uint8_t PLLFreqMHz);
-
+void ChangeUSART_BRR(USART_Handler_t *ptrUsartHandler,uint8_t BusFreqMHz);
+void ChangeClockI2C(I2C_Handler_t *ptrHandlerI2C,uint8_t BusFreqMHz);
 
 #endif /* PLLDRIVER_H_ */

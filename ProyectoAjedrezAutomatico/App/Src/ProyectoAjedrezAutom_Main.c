@@ -1311,7 +1311,8 @@ void CalculoPasos (char *jugada,uint8_t etapa){
 	 *
 	 * Sabiendo que:
 	 *
-	 * jugada = {pieza,columnaInicial,filaInicial,captura,columnaFinal,filaFinal,jaque,'\0'}
+	 * jugada = {columnaInicial,filaInicial,columnaFinal,filaFinal,"flag" de enroque o captura,
+	 * "flag" de juagada invertida o Jaque Mate,"flag" de Jaque Mate,'\0'}
 	 */
 
 	/*Se divide en dos etapas. En la primera, calcula los pasos para llegar

@@ -1,0 +1,168 @@
+/*
+ * HD44780LCDDriver.c
+ *
+ *  Created on: May 28, 2023
+ *      Author: algraciam
+ */
+
+#include <stdint.h>
+#include "HD44780LCDDriver.h"
+#include "I2CDriver.h"
+#include "SysTickDriver.h"
+
+void LCD_Config(I2C_Handler_t *ptrHandlerI2C){
+
+	/*0. Cofiguramos el systick para que controle los tiempos de funcionamiento*/
+	config_SysTick_ms(HSI_CLOCK_CONFIGURED);
+
+	/*1. Proceso de inicializacion de la pantalla*/
+	//Creamos una variable especial para esto
+	uint8_t initConfig[1] = {0};
+
+	//hacemos un corto delay para que la pantalla encienda
+	delay_ms(45);
+
+	//Enviamos la instruccion de inicializacion
+	initConfig[0] = I2C_INSTRUCTION_INIT_LCD;
+	WriteI2CModule(ptrHandlerI2C, initConfig, 1);
+
+	//Hacemos otro corto delay
+	delay_ms(5);
+
+	//Volemos a enviar la instruccion de inicializacion
+	WriteI2CModule(ptrHandlerI2C, initConfig, 1);
+
+	//Hacemos otro corto delay
+	delay_ms(1);
+
+	//Enviamos por ultima vez la instruccion de inicializacion
+	WriteI2CModule(ptrHandlerI2C, initConfig, 1);
+
+	/*2. Configuramos la pantalla para que funcione a 4 bits*/
+	initConfig[0] = I2C_INSTRUCTION_4BITOPERATION;
+	WriteI2CModule(ptrHandlerI2C,initConfig , 1);
+
+	/*3.Configuramos la pantalla a una linea y de 5x8 bits*/
+	WriteLCDInstruction(ptrHandlerI2C, LCD_INSTRUCTION_1LINE_5X8FONT);
+
+	/*4. Apagamos la pantalla*/
+	WriteLCDInstruction(ptrHandlerI2C, LCD_INSTRUCTION_DISPLAY_OFF);
+
+	/*5.Limpiamos el display*/
+	WriteLCDInstruction(ptrHandlerI2C, LCD_INSTRUCTION_DISPLAY_CLEAN);
+
+	/*6. Configuramos un modo de entradas que al escribir, mueva el cursor a la derecha*/
+	WriteLCDInstruction(ptrHandlerI2C, LCD_INSTRUCTION_ENTRYMODE_R);
+
+	/*7. Encendemos la pantalla y el cursor*/
+	WriteLCDInstruction(ptrHandlerI2C,LCD_INSTRUCTION_DISPLAY_ON | LCD_INSTRUCTION_CURSOR_ON);
+
+//	/*5 leemos la busyFlag*/
+//	while(ReadLCDbusyFlag(ptrHandlerI2C)){
+//		__NOP();
+//	}
+}
+
+/*Funcion para enviar instrucciones*/
+void WriteLCDInstruction(I2C_Handler_t *ptrHandlerI2C,uint8_t instruccion){
+
+	/*Como se esta trabajando a 4 bits de informacion, las instrucciones se
+	 * tienen que mandar a dos partes
+	 */
+	uint8_t upper4Bits =0;
+	uint8_t lower4Bits =0;
+
+	//extraemos de la instruccion los trozos de bits que nos interesan
+	upper4Bits = instruccion & (0xF << 4);
+	lower4Bits = instruccion & (0xF << 0);
+
+	//Creamos un array para guardar los Bytes a enviar
+	uint8_t dataToSend[2] = {0};
+
+	//combinamos los bits de informacion con los bits por defecto para
+	//el proceso de escritura con este modulo I2C, ademas, reorganizamos
+	//los bits de modo que el envio sea correcto
+
+	dataToSend[0] = (upper4Bits) | I2C_WRITE_INSTRUCTIONS;
+
+
+	WriteI2CModule(ptrHandlerI2C, dataToSend, 1);
+
+	dataToSend[0] = (lower4Bits << 4) | I2C_WRITE_INSTRUCTIONS;
+
+	WriteI2CModule(ptrHandlerI2C, dataToSend, 1);
+
+//	//Revisamos si la busyFlag esta en alto y no continuamos hasta que no baje
+//	while(ReadLCDbusyFlag(ptrHandlerI2C)){
+//		__NOP();
+//	}
+}
+
+/*Funcion para mandar los datos a traves del I2C*/
+void WriteI2CModule(I2C_Handler_t *ptrHandlerI2C,uint8_t *i2cData, uint8_t numByte){
+
+	//Para esto, vamos a seguir el orden que indica el datasheet
+	//del modulo I2C
+
+	/*1. Mandamos una condicion de START*/
+	i2c_startTransaction(ptrHandlerI2C);
+
+	/*2. Mandamos el address del esclavo*/
+	i2c_sendSlaveAddressRW(ptrHandlerI2C, ptrHandlerI2C->slaveAddress, I2C_WRITE_DATA);
+
+	/*3a. Mandamos el dato, ya sea una instruccion o un caracter*/
+	i2c_sendDataByte(ptrHandlerI2C, i2cData[0]);
+
+	/*3b. Mandamos el siguiente dato en caso de que sea necesario enviar dos datos
+	 * de una vez. Esto pasa por que estamos trabajando a 4 bit de informacion en la LCD
+	 */
+	if(numByte ==2){
+		i2c_sendDataByte(ptrHandlerI2C, i2cData[1]);
+	}
+	/*3. desactivamos el enable*/
+	i2c_sendDataByte(ptrHandlerI2C, 0);
+
+	/*4. Generamos la condicion de STOP luego de 1 o 2 Bytes*/
+	i2c_stopTransaction(ptrHandlerI2C);
+
+}
+
+/*Funcion para leer la busyflag*/
+uint8_t ReadLCDbusyFlag(I2C_Handler_t *ptrHandlerI2C){
+
+	/*0. Creamos una variable auxiliar para recibir el dato que leemos*/
+	uint8_t auxRead = 0;
+
+	uint8_t busyFlag = 0;
+
+	/*1. Generamos la condicion Start*/
+	i2c_startTransaction(ptrHandlerI2C);
+
+	/*2. Enviamos la direccion del esclavo y la indicacion de ESCRIBIR*/
+	i2c_sendSlaveAddressRW(ptrHandlerI2C, ptrHandlerI2C->slaveAddress, I2C_WRITE_DATA);
+
+	/*3. Enviamos la instruccion para que se lea la BusyFlag*/
+	i2c_sendDataByte(ptrHandlerI2C, I2C_READBF);
+
+	/*4. Creamos una condicion de reStart*/
+	i2c_reStartTransaction(ptrHandlerI2C);
+
+	/*5. Enviamos la direccion del esclavo y la indicacion de LEER*/
+	i2c_sendSlaveAddressRW(ptrHandlerI2C, ptrHandlerI2C->slaveAddress, I2C_READ_DATA);
+
+	/*6. Leemos el dato que envia el esclavo*/
+	auxRead = i2c_readDataByte(ptrHandlerI2C);
+
+	/*7.Generamos la condicion NoAck, para que el Master no responda y slave solo envie 1 Byte*/
+	i2c_sendNoAck(ptrHandlerI2C);
+
+	/*8.Generamos la condicion Stop, para que el slave se detenga 1 Byte*/
+	i2c_stopTransaction(ptrHandlerI2C);
+
+
+	busyFlag = auxRead & LCD_BUSYFLAGBIT;
+
+	busyFlag >>=7;
+
+	return busyFlag;
+}

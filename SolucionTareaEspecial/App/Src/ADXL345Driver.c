@@ -81,7 +81,7 @@ uint8_t GetAccelID(I2C_Handler_t *ptrHandlerI2C){
 }
 
 /*Funcion para recibir datos en X*/
-float GetAccelXDATA(I2C_Handler_t *ptrHandlerI2C){
+int16_t GetAccelXDATA(I2C_Handler_t *ptrHandlerI2C){
 
 	//Leemos los registros con los datos instantaneos en X
 	uint8_t dataX0 = i2c_readSingleRegister(ptrHandlerI2C, ACCEL_DATAX0);
@@ -90,14 +90,11 @@ float GetAccelXDATA(I2C_Handler_t *ptrHandlerI2C){
 	//Como estos son complementarios, los montamos ambos en una misma variable
 	int16_t dataX = (dataX1 << 8) | dataX0;
 
-	//Convertimos el dato al sistema metrico
-	float convertedDataX = ConvertUnits(ptrHandlerI2C, dataX);
-
-	return convertedDataX;
+	return dataX;
 }
 
 /*Funcion para recibir datos en Y*/
-float GetAccelYDATA(I2C_Handler_t *ptrHandlerI2C){
+int16_t GetAccelYDATA(I2C_Handler_t *ptrHandlerI2C){
 
 	//Leemos los registros con los datos instantaneos en Y
 	uint8_t dataY0 = i2c_readSingleRegister(ptrHandlerI2C, ACCEL_DATAY0);
@@ -106,14 +103,11 @@ float GetAccelYDATA(I2C_Handler_t *ptrHandlerI2C){
 	//Como estos son complementarios, los montamos ambos en una misma variable
 	int16_t dataY = (dataY1 << 8) | dataY0;
 
-	//Convertimos el dato al sistema metrico
-	float convertedDataY = ConvertUnits(ptrHandlerI2C, dataY);
-
-	return convertedDataY;
+	return dataY;
 }
 
 /*Funcion para recibir datos en Z*/
-float GetAccelZDATA(I2C_Handler_t *ptrHandlerI2C){
+int16_t GetAccelZDATA(I2C_Handler_t *ptrHandlerI2C){
 
 	//Leemos los registros con los datos instantaneos en Z
 	uint8_t dataZ0 = i2c_readSingleRegister(ptrHandlerI2C, ACCEL_DATAZ0);
@@ -122,10 +116,7 @@ float GetAccelZDATA(I2C_Handler_t *ptrHandlerI2C){
 	//Como estos son complementarios, los montamos ambos en una misma variable
 	int16_t dataZ = (dataZ1 << 8) | dataZ0;
 
-	//Convertimos el dato al sistema metrico
-	float convertedDataZ = ConvertUnits(ptrHandlerI2C, dataZ);
-
-	return convertedDataZ;
+	return dataZ;
 }
 
 /*Funcion para cambiar el rango del acelerometro*/
