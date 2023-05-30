@@ -100,6 +100,15 @@ int main(void) {
 	ChangeUSART_BRR(&handlerUSART6, 80);
 	ChangeClockI2C(&handlerAcelerometro, 40);
 
+	sprintf(bufferMsg, "Las opciones en el teclado son: i-> info del accel; m-> modo del acel; p->PWM\n");
+	writeMsg(&handlerUSART6, bufferMsg);
+
+	sprintf(bufferMsg, "x->acelX; y->acelY; z->acelZ");
+	writeMsg(&handlerUSART6, bufferMsg);
+
+	sprintf(bufferMsg, "t->imprimir los 2000 datos; r->cambiar rango");
+	writeMsg(&handlerUSART6, bufferMsg);
+
 	/* Loop forever*/
 	while (1) {
 
@@ -163,10 +172,104 @@ int main(void) {
 				//En este caso va cambiando la informacion del acelerometro que muestra
 				//la LCD
 
-				i2cDato = GetAccelID(&handlerAcelerometro);
+				MoveLCDCursor(&handlerLCD, 4, 0);
+				sprintf(i2cBuffer,"                     ");
+				WriteLCDMsg(&handlerLCD, i2cBuffer);
 
-				sprintf(bufferMsg,"\nEl ID del acelerometro conectado es: 0x%x",i2cDato);
+				switch(showAcelConfig){
 
+				case 0:{
+					//En este caso, se va a mostrar en la pantalla el ID del accel
+					i2cDato = GetAccelID(&handlerAcelerometro);
+
+					/*Indicamos tambien en la LCD que estamos en ese modo*/
+					//Primero ubicamos el cursor en la linea 4 posicion 0
+					MoveLCDCursor(&handlerLCD, 4, 0);
+
+					//Escribimos en esa linea
+					sprintf(i2cBuffer,"Accel ID: %u",i2cDato);
+
+					WriteLCDMsg(&handlerLCD, i2cBuffer);
+					break;
+				}
+
+				case 1:{
+
+					i2cDato = GetAccelMode(&handlerAcelerometro);
+
+					/*Indicamos tambien en la LCD que estamos en algun modo*/
+					//Primero ubicamos el cursor en la linea 4 posicion 0
+					MoveLCDCursor(&handlerLCD, 4, 0);
+
+					if(measureRDY){
+						//Escribimos en esa linea
+						sprintf(i2cBuffer,"Modo Measure");
+						WriteLCDMsg(&handlerLCD, i2cBuffer);
+					}
+					else{
+						//Escribimos en esa linea
+						sprintf(i2cBuffer,"Modo StandBy");
+						WriteLCDMsg(&handlerLCD, i2cBuffer);
+					}
+
+					break;
+				}
+
+				case 2:{
+					i2cDato = GetAccelRange(&handlerAcelerometro);
+
+					/*Indicamos tambien en la LCD que estamos en algun modo*/
+					//Primero ubicamos el cursor en la linea 4 posicion 0
+					MoveLCDCursor(&handlerLCD, 4, 0);
+
+					switch(i2cDato){
+
+					case ACCEL_RANGE_2g:{
+						//Escribimos en esa linea
+						sprintf(i2cBuffer,"Rango: 2g");
+						WriteLCDMsg(&handlerLCD, i2cBuffer);
+						break;
+					}
+					case ACCEL_RANGE_4g:{
+						//Escribimos en esa linea
+						sprintf(i2cBuffer,"Rango: 4g");
+						WriteLCDMsg(&handlerLCD, i2cBuffer);
+						break;
+					}
+					case ACCEL_RANGE_8g:{
+						//Escribimos en esa linea
+						sprintf(i2cBuffer,"Rango: 8g");
+						WriteLCDMsg(&handlerLCD, i2cBuffer);
+						break;
+					}
+					case ACCEL_RANGE_16g:{
+						//Escribimos en esa linea
+						sprintf(i2cBuffer,"Rango: 16g");
+						WriteLCDMsg(&handlerLCD, i2cBuffer);
+						break;
+					}
+					default:
+						__NOP();
+					}
+
+					break;
+				}
+
+				default:{
+					__NOP();
+					break;
+				}
+				}
+
+				//Aumentamos la variable showAcelConfig para que esta vaya barriendo
+				//cada configuracion y luego de llegar a la ultima, la reiniciamos
+				showAcelConfig++;
+
+				if(showAcelConfig > 2){
+					showAcelConfig = 0;
+				}
+
+				sprintf(bufferMsg,"\n");
 				break;
 			}//Fin del Case 'i'
 
@@ -219,6 +322,14 @@ int main(void) {
 
 					sprintf(bufferMsg, "El acelerometro esta en modo Measure\n");
 					measureRDY =1; //Confirmamos que el acelerometro si esta midiendo
+
+					/*Indicamos tambien en la LCD que estamos en ese modo*/
+					//Primero ubicamos el cursor en la linea 4 posicion 0
+					MoveLCDCursor(&handlerLCD, 4, 0);
+
+					//Escribimos en esa linea
+					sprintf(i2cBuffer,"Modo Measure");
+					WriteLCDMsg(&handlerLCD, i2cBuffer);
 					break;
 				}
 				default:{
@@ -417,7 +528,7 @@ int main(void) {
 					//En este caso, el rango sera 2g
 					ChangeAccelRange(&handlerAcelerometro, ACCEL_RANGE_2g);
 
-					sprintf(bufferMsg,"El rango del acelerometro es 2g");
+					sprintf(bufferMsg,"El rango del acelerometro es 2g\n");
 					break;
 				}
 
@@ -425,7 +536,7 @@ int main(void) {
 					//En este caso, el rango sera 4g
 					ChangeAccelRange(&handlerAcelerometro, ACCEL_RANGE_4g);
 
-					sprintf(bufferMsg,"El rango del acelerometro es 4g");
+					sprintf(bufferMsg,"El rango del acelerometro es 4g\n");
 					break;
 				}
 
@@ -433,7 +544,7 @@ int main(void) {
 					//En este caso, el rango sera 8g
 					ChangeAccelRange(&handlerAcelerometro, ACCEL_RANGE_8g);
 
-					sprintf(bufferMsg,"El rango del acelerometro es 8g");
+					sprintf(bufferMsg,"El rango del acelerometro es 8g\n");
 					break;
 				}
 
@@ -441,7 +552,11 @@ int main(void) {
 					//En este caso, el rango sera 16g
 					ChangeAccelRange(&handlerAcelerometro, ACCEL_RANGE_16g);
 
-					sprintf(bufferMsg,"El rango del acelerometro es 16g");
+					sprintf(bufferMsg,"El rango del acelerometro es 16g\n");
+					break;
+				}
+				default:{
+					__NOP();
 					break;
 				}
 				}
@@ -458,7 +573,7 @@ int main(void) {
 				if(measureRDY){
 					ChangeAccelMode(&handlerAcelerometro, ACCEL_MODE_MEASURE);
 				}
-
+				break;
 			}
 
 			default:{
