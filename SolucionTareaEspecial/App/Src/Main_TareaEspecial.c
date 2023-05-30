@@ -23,10 +23,6 @@
 #include "ADXL345Driver.h"
 #include "HD44780LCDDriver.h"
 
-/*Macros utiles*/
-
-
-
 /*Handlers*/
 GPIO_Handler_t handlerOnBoardLed			={0};
 GPIO_Handler_t handlerPinTX					={0};
@@ -42,6 +38,7 @@ GPIO_Handler_t handlerPinPWM_Z				={0};
 
 BasicTimer_Handler_t handlerTimerBlinky		={0};
 BasicTimer_Handler_t handlerTimerMuestreo	={0};
+BasicTimer_Handler_t handlerTimerRefresco	={0};
 
 USART_Handler_t handlerUSART6				={0};
 
@@ -58,11 +55,12 @@ char bufferMsg[100] 		={0};
 uint8_t USARTDataRecieved 	= 0;
 
 //I2C
-uint8_t i2cBuffer			=0;
+uint8_t i2cDato				=0;
 uint16_t numDato			=0;
 float aceleracionesX[2000] 	={0};
 float aceleracionesY[2000] 	={0};
 float aceleracionesZ[2000] 	={0};
+char i2cBuffer[30]			={0};
 
 //Acelerometro
 uint8_t mode 			=0;
@@ -73,25 +71,33 @@ float accelX			=0;
 float accelY			=0;
 float accelZ			=0;
 
-uint16_t periodoPWM 	=10240;
-uint16_t pulseWidthPWM 	=5120;
+uint16_t periodoPWM 		=10240;
+uint16_t pulseWidthPWM 		=5120;
+uint16_t timersPrescaler 	=BTIMER_80MHz_100us;
+
+//LCD
+uint8_t rangoAcel 		=0;
+uint8_t showAcelConfig 	=0;
 
 
 /*Banderas*/
 uint8_t measureRDY 		=0;
 uint8_t flagMuestreo 	=0;
+uint8_t flagRefresco	=0;
 uint8_t pwmEnable		=0;
+uint8_t accelLCD		=1;
 
 
 /*Headers de funciones*/
 void InitHardware(void);
 void ConvertAccelDataToPW(PWM_Handler_t *ptrPwmHandler,int16_t data);
+void AccelOnLCD(I2C_Handler_t *ptrHandlerI2C, float accX,float accY,float accZ);
 
 int main(void) {
 
 	InitHardware();
 	configPLL(HSI_80MHz_PLLN, HSI_80MHz_PLLP);
-	ChangeUSART_BRR(&handlerUSART6, 40);
+	ChangeUSART_BRR(&handlerUSART6, 80);
 	ChangeClockI2C(&handlerAcelerometro, 40);
 
 	/* Loop forever*/
@@ -122,19 +128,44 @@ int main(void) {
 
 			flagMuestreo =0;
 			}
+
+			/*En esta parte del codigo, se va a actualizar los valores
+			 * en la pantalla segun lo que se almacene en el instante
+			 * del refresco de esta
+			 */
+			if(flagRefresco){
+
+				//Medimos intantaneamente los datos del acelerometro
+				dataX = GetAccelXDATA(&handlerAcelerometro);
+				dataY = GetAccelYDATA(&handlerAcelerometro);
+				dataZ = GetAccelZDATA(&handlerAcelerometro);
+
+				//Convertimos la unidades
+				accelX =ConvertUnits(&handlerAcelerometro, dataX);
+				accelY =ConvertUnits(&handlerAcelerometro, dataY);
+				accelZ =ConvertUnits(&handlerAcelerometro, dataZ);
+
+				//Enviamos esto a la pantalla
+				AccelOnLCD(&handlerLCD, accelX, accelY, accelZ);
+
+				//Bajamos la bandera de refresco
+				flagRefresco =0;
+			}
 		}
 
+		/*Aqui comienza el codigo con los comandos por USART*/
 		if (USARTDataRecieved != '\0'){
 
 			//Hacemos un switch para cada mensaje de informacion
 			switch(USARTDataRecieved){
 
 			case 'i':{
-				//En este caso se revisa el ID del acelerometro conectado
+				//En este caso va cambiando la informacion del acelerometro que muestra
+				//la LCD
 
-				i2cBuffer = GetAccelID(&handlerAcelerometro);
+				i2cDato = GetAccelID(&handlerAcelerometro);
 
-				sprintf(bufferMsg,"\nEl ID del acelerometro conectado es: 0x%x",i2cBuffer);
+				sprintf(bufferMsg,"\nEl ID del acelerometro conectado es: 0x%x",i2cDato);
 
 				break;
 			}//Fin del Case 'i'
@@ -155,7 +186,8 @@ int main(void) {
 				}
 
 				case 1:{
-					//Estamos en el caso StandBy
+
+					//Estamos en el caso Measure
 					ChangeAccelMode(&handlerAcelerometro, ACCEL_MODE_MEASURE);
 					break;
 				}
@@ -173,6 +205,14 @@ int main(void) {
 				case ACCEL_MODE_STANDBY:{
 
 					sprintf(bufferMsg, "El acelerometro esta en modo StandBy\n");
+
+					/*Indicamos tambien en la LCD que estamos en ese modo*/
+					//Primero ubicamos el cursor en la linea 4 posicion 0
+					MoveLCDCursor(&handlerLCD, 4, 0);
+
+					//Escribimos en esa linea
+					sprintf(i2cBuffer,"Modo StandBy");
+					WriteLCDMsg(&handlerLCD, i2cBuffer);
 					break;
 				}
 				case ACCEL_MODE_MEASURE:{
@@ -350,6 +390,7 @@ int main(void) {
 					sprintf(bufferMsg,"Se activaron los PWM\n");
 					break;
 				}
+
 				default:{
 					//Desactivamos los PWM por defecto
 					disableOutput(&handlerSeñalPWM_X);
@@ -362,6 +403,62 @@ int main(void) {
 				}
 
 				break;
+			}//Fin del case 'p'
+
+			case 'r':{
+				//En este caso vamos a configurar el rango del acelerometro
+
+				/*Primero, ponemos el acelerometro en modo standBy*/
+				ChangeAccelMode(&handlerAcelerometro, ACCEL_MODE_STANDBY);
+
+				switch(rangoAcel){
+
+				case 0:{
+					//En este caso, el rango sera 2g
+					ChangeAccelRange(&handlerAcelerometro, ACCEL_RANGE_2g);
+
+					sprintf(bufferMsg,"El rango del acelerometro es 2g");
+					break;
+				}
+
+				case 1:{
+					//En este caso, el rango sera 4g
+					ChangeAccelRange(&handlerAcelerometro, ACCEL_RANGE_4g);
+
+					sprintf(bufferMsg,"El rango del acelerometro es 4g");
+					break;
+				}
+
+				case 2:{
+					//En este caso, el rango sera 8g
+					ChangeAccelRange(&handlerAcelerometro, ACCEL_RANGE_8g);
+
+					sprintf(bufferMsg,"El rango del acelerometro es 8g");
+					break;
+				}
+
+				case 3:{
+					//En este caso, el rango sera 16g
+					ChangeAccelRange(&handlerAcelerometro, ACCEL_RANGE_16g);
+
+					sprintf(bufferMsg,"El rango del acelerometro es 16g");
+					break;
+				}
+				}
+
+				//Aumentamos la variable rangoAcel para que esta vaya barriendo
+				//cada configuracion y luego de llegar a la ultima, la reiniciamos
+				rangoAcel++;
+
+				if(rangoAcel > 3){
+					rangoAcel = 0;
+				}
+
+				/*Lo volvemos a poner el modo measure en caso de que la bandera este arriba*/
+				if(measureRDY){
+					ChangeAccelMode(&handlerAcelerometro, ACCEL_MODE_MEASURE);
+				}
+
 			}
 
 			default:{
@@ -391,7 +488,7 @@ void InitHardware(void){
 
 	handlerTimerBlinky.ptrTIMx								=TIM2;
 	handlerTimerBlinky.TIMx_Config.TIMx_mode				=BTIMER_MODE_UP;
-	handlerTimerBlinky.TIMx_Config.TIMx_speed				=BTIMER_80MHz_100us;
+	handlerTimerBlinky.TIMx_Config.TIMx_speed				=timersPrescaler;
 	handlerTimerBlinky.TIMx_Config.TIMx_period				=2500;   //Con esto, el blinky va a 250ms
 	handlerTimerBlinky.TIMx_Config.TIMx_interruptEnable		=BTIMER_INTERRUPT_ENABLE;
 
@@ -413,21 +510,21 @@ void InitHardware(void){
 	/*Configuramos la comunicacion serial*/
 	//Configuramos pines para la comunicacion serial
 	handlerPinTX.pGPIOx 								= GPIOA;
-	handlerPinTX.GPIO_PinConfig.GPIO_PinNumber 			= PIN_2;
+	handlerPinTX.GPIO_PinConfig.GPIO_PinNumber 			= PIN_11;
 	handlerPinTX.GPIO_PinConfig.GPIO_PinMode 			= GPIO_MODE_ALTFN;
-	handlerPinTX.GPIO_PinConfig.GPIO_PinAltFunMode 		= AF7;
+	handlerPinTX.GPIO_PinConfig.GPIO_PinAltFunMode 		= AF8;
 
 	handlerPinRX.pGPIOx 								= GPIOA;
-	handlerPinRX.GPIO_PinConfig.GPIO_PinNumber 			= PIN_3;
+	handlerPinRX.GPIO_PinConfig.GPIO_PinNumber 			= PIN_12;
 	handlerPinRX.GPIO_PinConfig.GPIO_PinMode 			= GPIO_MODE_ALTFN;
-	handlerPinRX.GPIO_PinConfig.GPIO_PinAltFunMode 		= AF7;
+	handlerPinRX.GPIO_PinConfig.GPIO_PinAltFunMode 		= AF8;
 
 	//Cargamos las configuraciones
 	GPIO_Config(&handlerPinTX);
 	GPIO_Config(&handlerPinRX);
 
 	//Configuramos el USART
-	handlerUSART6.ptrUSARTx 						= USART2;
+	handlerUSART6.ptrUSARTx 						= USART6;
 	handlerUSART6.USART_Config.USART_baudrate 		= USART_BAUDRATE_115200;
 	handlerUSART6.USART_Config.USART_datasize 		= USART_DATASIZE_8BIT;
 	handlerUSART6.USART_Config.USART_mode			= USART_MODE_RXTX;
@@ -471,7 +568,7 @@ void InitHardware(void){
 	/*Configuramos el timer de muestreo del Acelerometro*/
 	handlerTimerMuestreo.ptrTIMx							=TIM4;
 	handlerTimerMuestreo.TIMx_Config.TIMx_mode				=BTIMER_MODE_UP;
-	handlerTimerMuestreo.TIMx_Config.TIMx_speed				=BTIMER_80MHz_100us;
+	handlerTimerMuestreo.TIMx_Config.TIMx_speed				=timersPrescaler;
 	handlerTimerMuestreo.TIMx_Config.TIMx_period			=10; //Con esto, el timer va a 1ms (1kHz)
 	handlerTimerMuestreo.TIMx_Config.TIMx_interruptEnable	=BTIMER_INTERRUPT_ENABLE;
 
@@ -490,7 +587,7 @@ void InitHardware(void){
 	handlerSeñalPWM_X.ptrTIMx							=TIM3;
 	handlerSeñalPWM_X.config.channel 					=PWM_CHANNEL_1;
 	handlerSeñalPWM_X.config.polarity 					=PWM_POLARITY_ACTIVE_HIGH;
-	handlerSeñalPWM_X.config.prescaler 					=PWM_80MHz_PRESCALER_100us;
+	handlerSeñalPWM_X.config.prescaler 					=timersPrescaler;
 	handlerSeñalPWM_X.config.periodo 					=periodoPWM; //Equivale a un periodo de 1024ms
 	handlerSeñalPWM_X.config.pulseWidth 				=pulseWidthPWM; //Equivale a un PW de 512 ms o un DutyCicle de 50%
 
@@ -510,7 +607,7 @@ void InitHardware(void){
 	handlerSeñalPWM_Y.ptrTIMx							=TIM3;
 	handlerSeñalPWM_Y.config.channel 					=PWM_CHANNEL_2;
 	handlerSeñalPWM_Y.config.polarity 					=PWM_POLARITY_ACTIVE_HIGH;
-	handlerSeñalPWM_Y.config.prescaler 					=PWM_80MHz_PRESCALER_100us;
+	handlerSeñalPWM_Y.config.prescaler 					=timersPrescaler;
 	handlerSeñalPWM_Y.config.periodo 					=periodoPWM; //Equivale a un periodo de 1024ms
 	handlerSeñalPWM_Y.config.pulseWidth 				=pulseWidthPWM; //Equivale a un PW de 512 ms o un DutyCicle de 50%
 
@@ -529,8 +626,7 @@ void InitHardware(void){
 
 	handlerSeñalPWM_Z.ptrTIMx							=TIM3;
 	handlerSeñalPWM_Z.config.channel 					=PWM_CHANNEL_4;
-	handlerSeñalPWM_Z.config.polarity 					=PWM_POLARITY_ACTIVE_HIGH;
-	handlerSeñalPWM_Z.config.prescaler 					=PWM_80MHz_PRESCALER_100us;
+	handlerSeñalPWM_Z.config.polarity 					=timersPrescaler;
 	handlerSeñalPWM_Z.config.periodo 					=periodoPWM; //Equivale a un periodo de 1024ms
 	handlerSeñalPWM_Z.config.pulseWidth 				=pulseWidthPWM; //Equivale a un PW de 512 ms o un DutyCicle de 50%
 
@@ -547,36 +643,46 @@ void InitHardware(void){
 	disableOutput(&handlerSeñalPWM_Y);
 	disableOutput(&handlerSeñalPWM_Z);
 
-//	/*Configuramos el I2C de la pantalla LCD*/
-//	//Configuramos los pines
-//	handlerLCDSCL.pGPIOx 								= GPIOB;
-//	handlerLCDSCL.GPIO_PinConfig.GPIO_PinNumber			= PIN_10;
-//	handlerLCDSCL.GPIO_PinConfig.GPIO_PinMode			= GPIO_MODE_ALTFN;
-//	handlerLCDSCL.GPIO_PinConfig.GPIO_PinOPType			= GPIO_OTYPE_OPENDRAIN;
-//	handlerLCDSCL.GPIO_PinConfig.GPIO_PinPuPdControl	= GPIO_PUPDR_NOTHING;
-//	handlerLCDSCL.GPIO_PinConfig.GPIO_PinSpeed			= GPIO_OSPEED_FAST;
-//	handlerLCDSCL.GPIO_PinConfig.GPIO_PinAltFunMode 	= AF4;
-//
-//	handlerLCDSDA.pGPIOx 								= GPIOB;
-//	handlerLCDSDA.GPIO_PinConfig.GPIO_PinNumber			= PIN_3;
-//	handlerLCDSDA.GPIO_PinConfig.GPIO_PinMode			= GPIO_MODE_ALTFN;
-//	handlerLCDSDA.GPIO_PinConfig.GPIO_PinOPType			= GPIO_OTYPE_OPENDRAIN;
-//	handlerLCDSDA.GPIO_PinConfig.GPIO_PinPuPdControl	= GPIO_PUPDR_NOTHING;
-//	handlerLCDSDA.GPIO_PinConfig.GPIO_PinSpeed			= GPIO_OSPEED_FAST;
-//	handlerLCDSDA.GPIO_PinConfig.GPIO_PinAltFunMode 	= AF9;
-//
-//	GPIO_Config(&handlerLCDSCL);
-//	GPIO_Config(&handlerLCDSDA);
-//
-//	//Configuramos el I2C
-//	handlerLCD.ptrI2Cx			=I2C2;
-//	handlerLCD.modeI2C 			=I2C_MODE_SM;
-//	handlerLCD.slaveAddress		=LCD_ADDRESS_A1JUMPER;
-//
-//	i2c_config(&handlerLCD);
+	/*Configuramos el I2C de la pantalla LCD*/
+	//Configuramos los pines
+	handlerLCDSCL.pGPIOx 								= GPIOB;
+	handlerLCDSCL.GPIO_PinConfig.GPIO_PinNumber			= PIN_10;
+	handlerLCDSCL.GPIO_PinConfig.GPIO_PinMode			= GPIO_MODE_ALTFN;
+	handlerLCDSCL.GPIO_PinConfig.GPIO_PinOPType			= GPIO_OTYPE_OPENDRAIN;
+	handlerLCDSCL.GPIO_PinConfig.GPIO_PinPuPdControl	= GPIO_PUPDR_NOTHING;
+	handlerLCDSCL.GPIO_PinConfig.GPIO_PinSpeed			= GPIO_OSPEED_FAST;
+	handlerLCDSCL.GPIO_PinConfig.GPIO_PinAltFunMode 	= AF4;
 
-//	//Configuramos la LCD
-//	LCD_Config(&handlerLCD);
+	handlerLCDSDA.pGPIOx 								= GPIOB;
+	handlerLCDSDA.GPIO_PinConfig.GPIO_PinNumber			= PIN_3;
+	handlerLCDSDA.GPIO_PinConfig.GPIO_PinMode			= GPIO_MODE_ALTFN;
+	handlerLCDSDA.GPIO_PinConfig.GPIO_PinOPType			= GPIO_OTYPE_OPENDRAIN;
+	handlerLCDSDA.GPIO_PinConfig.GPIO_PinPuPdControl	= GPIO_PUPDR_NOTHING;
+	handlerLCDSDA.GPIO_PinConfig.GPIO_PinSpeed			= GPIO_OSPEED_FAST;
+	handlerLCDSDA.GPIO_PinConfig.GPIO_PinAltFunMode 	= AF9;
+
+	GPIO_Config(&handlerLCDSCL);
+	GPIO_Config(&handlerLCDSDA);
+
+	//Configuramos el I2C
+	handlerLCD.ptrI2Cx			=I2C2;
+	handlerLCD.modeI2C 			=I2C_MODE_SM;
+	handlerLCD.slaveAddress		=LCD_ADDRESS_A1JUMPER;
+
+	i2c_config(&handlerLCD);
+
+	//Configuramos la LCD
+	LCD_Config(&handlerLCD);
+
+	//Configuramos un timer para el refresco de la LCD
+	handlerTimerRefresco.ptrTIMx							=TIM5;
+	handlerTimerRefresco.TIMx_Config.TIMx_mode				=BTIMER_MODE_UP;
+	handlerTimerRefresco.TIMx_Config.TIMx_speed				=timersPrescaler;
+	handlerTimerRefresco.TIMx_Config.TIMx_period			=10000; //Con esto, el timer va a 1s
+	handlerTimerRefresco.TIMx_Config.TIMx_interruptEnable	=BTIMER_INTERRUPT_ENABLE;
+
+	BasicTimer_Config(&handlerTimerRefresco);
+
 }
 
 /*Creamos una funcion para convertir los datos del acelerometro en PulseWidth para el PWM*/
@@ -600,6 +706,68 @@ void ConvertAccelDataToPW(PWM_Handler_t *ptrPwmHandler, int16_t data){
 	updatePulseWidth(ptrPwmHandler, pw);
 }
 
+/*Funcion para mostar las aceleraciones en la LCD*/
+void AccelOnLCD(I2C_Handler_t *ptrHandlerI2C, float accX,float accY,float accZ){
+
+	/*Imprimimos solo una vez en cada linea el nombre de la aceleracion que se
+	 * va a mostar ahi
+	 */
+	if(accelLCD){
+
+		//Primero debemos mover el cursor a la posicion indicada
+		//En este caso, linea 1, posicion 0
+		MoveLCDCursor(ptrHandlerI2C, 1, 0);
+
+		//Imprimimos en esa linea
+		sprintf(i2cBuffer,"AccelX:        m/s^2");
+		WriteLCDMsg(ptrHandlerI2C, i2cBuffer);
+
+		//Ahora movemos el cursor a la segunda linea, posicion cero
+		MoveLCDCursor(ptrHandlerI2C, 2, 0);
+
+		//Imprimimos en esa linea
+		sprintf(i2cBuffer,"AccelY:        m/s^2");
+		WriteLCDMsg(ptrHandlerI2C, i2cBuffer);
+
+		//Finalmente movemos el cursor a la tercera linea, posicion cero
+		MoveLCDCursor(ptrHandlerI2C, 3, 0);
+
+		//Imprimimos en esa linea
+		sprintf(i2cBuffer,"AccelZ:        m/s^2");
+		WriteLCDMsg(ptrHandlerI2C, i2cBuffer);
+
+		//Bajamos la bandera para que esto solo se imprima una vez
+		accelLCD =0;
+	}
+
+	/*A partir de aqui, la pantalla va a estar refrescando solo la zona
+	 * donde aparecen los valores de las aceleraciones
+	 */
+	//Primero ubicamos el cursor en la fila 1 posicion 8 y escribimos el dato
+	MoveLCDCursor(ptrHandlerI2C, 1, 8);
+
+	//Imprimimos en esa linea
+	sprintf(i2cBuffer,"%.2f",accX);
+	WriteLCDMsg(ptrHandlerI2C, i2cBuffer);
+
+	//Primero ubicamos el cursor en la fila 2 posicion 8 y escribimos el dato
+	MoveLCDCursor(ptrHandlerI2C, 2, 8);
+
+	//Imprimimos en esa linea
+	sprintf(i2cBuffer,"%.2f",accY);
+	WriteLCDMsg(ptrHandlerI2C, i2cBuffer);
+
+	//Primero ubicamos el cursor en la fila 3 posicion 8 y escribimos el dato
+	MoveLCDCursor(ptrHandlerI2C, 3, 8);
+
+	//Imprimimos en esa linea
+	sprintf(i2cBuffer,"%.2f",accZ);
+	WriteLCDMsg(ptrHandlerI2C, i2cBuffer);
+
+}
+
+
+
 
 /*Callbacks*/
 void BasicTimer2_Callback(void){
@@ -612,6 +780,11 @@ void BasicTimer4_Callback(void){
 
 }
 
-void usart2Rx_Callback(void){
+void BasicTimer5_Callback(void){
+	flagRefresco =1;
+
+}
+
+void usart6Rx_Callback(void){
 	USARTDataRecieved =getRxData();
 }
