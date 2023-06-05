@@ -97,8 +97,9 @@ int main(void) {
 
 	InitHardware();
 	configPLL(HSI_80MHz_PLLN, HSI_80MHz_PLLP);
-	ChangeUSART_BRR(&handlerUSART6, 80);
+	ChangeUSART_BRR(&handlerUSART6, 40);
 	ChangeClockI2C(&handlerAcelerometro, 40);
+	ChangeClockI2C(&handlerLCD, 40);
 
 	sprintf(bufferMsg, "Las opciones en el teclado son: i-> info del accel; m-> modo del acel; p->PWM\n");
 	writeMsg(&handlerUSART6, bufferMsg);
@@ -625,21 +626,21 @@ void InitHardware(void){
 	/*Configuramos la comunicacion serial*/
 	//Configuramos pines para la comunicacion serial
 	handlerPinTX.pGPIOx 								= GPIOA;
-	handlerPinTX.GPIO_PinConfig.GPIO_PinNumber 			= PIN_11;
+	handlerPinTX.GPIO_PinConfig.GPIO_PinNumber 			= PIN_2;
 	handlerPinTX.GPIO_PinConfig.GPIO_PinMode 			= GPIO_MODE_ALTFN;
-	handlerPinTX.GPIO_PinConfig.GPIO_PinAltFunMode 		= AF8;
+	handlerPinTX.GPIO_PinConfig.GPIO_PinAltFunMode 		= AF7;
 
 	handlerPinRX.pGPIOx 								= GPIOA;
-	handlerPinRX.GPIO_PinConfig.GPIO_PinNumber 			= PIN_12;
+	handlerPinRX.GPIO_PinConfig.GPIO_PinNumber 			= PIN_3;
 	handlerPinRX.GPIO_PinConfig.GPIO_PinMode 			= GPIO_MODE_ALTFN;
-	handlerPinRX.GPIO_PinConfig.GPIO_PinAltFunMode 		= AF8;
+	handlerPinRX.GPIO_PinConfig.GPIO_PinAltFunMode 		= AF7;
 
 	//Cargamos las configuraciones
 	GPIO_Config(&handlerPinTX);
 	GPIO_Config(&handlerPinRX);
 
 	//Configuramos el USART
-	handlerUSART6.ptrUSARTx 						= USART6;
+	handlerUSART6.ptrUSARTx 						= USART2;
 	handlerUSART6.USART_Config.USART_baudrate 		= USART_BAUDRATE_115200;
 	handlerUSART6.USART_Config.USART_datasize 		= USART_DATASIZE_8BIT;
 	handlerUSART6.USART_Config.USART_mode			= USART_MODE_RXTX;
@@ -686,8 +687,8 @@ void InitHardware(void){
 	handlerTimerMuestreo.TIMx_Config.TIMx_speed				=timersPrescaler;
 	handlerTimerMuestreo.TIMx_Config.TIMx_period			=10; //Con esto, el timer va a 1ms (1kHz)
 	handlerTimerMuestreo.TIMx_Config.TIMx_interruptEnable	=BTIMER_INTERRUPT_ENABLE;
-
-	BasicTimer_Config(&handlerTimerMuestreo);
+//
+//	BasicTimer_Config(&handlerTimerMuestreo);
 
 	/*Configuramos los PWM*/
 	//PWM_X
@@ -741,7 +742,8 @@ void InitHardware(void){
 
 	handlerSeñalPWM_Z.ptrTIMx							=TIM3;
 	handlerSeñalPWM_Z.config.channel 					=PWM_CHANNEL_4;
-	handlerSeñalPWM_Z.config.polarity 					=timersPrescaler;
+	handlerSeñalPWM_Z.config.polarity 					=PWM_POLARITY_ACTIVE_HIGH;
+	handlerSeñalPWM_Z.config.prescaler 					=timersPrescaler;
 	handlerSeñalPWM_Z.config.periodo 					=periodoPWM; //Equivale a un periodo de 1024ms
 	handlerSeñalPWM_Z.config.pulseWidth 				=pulseWidthPWM; //Equivale a un PW de 512 ms o un DutyCicle de 50%
 
@@ -900,6 +902,6 @@ void BasicTimer5_Callback(void){
 
 }
 
-void usart6Rx_Callback(void){
+void usart2Rx_Callback(void){
 	USARTDataRecieved =getRxData();
 }

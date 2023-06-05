@@ -1,5 +1,7 @@
 import chess
 import chess.engine
+import chess.svg
+import pygame as pg
 import time
 import re
 
@@ -92,6 +94,8 @@ while True:
 	#Muestra el tablero inicial
 	print(board) 
 
+	chess.svg.board(board,size = 350)
+	
 	#Configuramos el primer movimiento segun el color que escogio el usuario
 	if side == 'n':
 

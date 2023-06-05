@@ -76,7 +76,7 @@ void LCD_Config(I2C_Handler_t *ptrHandlerI2C){
 	WriteLCDInstruction(ptrHandlerI2C, LCD_INSTRUCTION_ENTRYMODE_R);
 
 	/*7. Encendemos la pantalla y el cursor*/
-	WriteLCDInstruction(ptrHandlerI2C,LCD_INSTRUCTION_DISPLAY_ON | LCD_INSTRUCTION_CURSOR_ON);
+	WriteLCDInstruction(ptrHandlerI2C,LCD_INSTRUCTION_DISPLAY_ON);
 
 }
 
