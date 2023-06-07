@@ -96,24 +96,6 @@ void configPLL(uint8_t PLLN, uint8_t PLLP){
 	//Cargamos la configuracion
 	FLASH->ACR |= (0b10 << FLASH_ACR_LATENCY_Pos);
 
-	/*7a. Configuramos la salida del MCO1 antes de habilitar el PLL*/
-
-	//Limpiamos esta parte del registro
-	RCC->CFGR &= ~RCC_CFGR_MCO1;
-
-	//Cargamos la configuracion requerida
-	RCC->CFGR |= RCC_CFGR_MCO1_0;
-	RCC->CFGR |= RCC_CFGR_MCO1_1;
-
-	/*7b. Ahora, le aplicamos un preescaler al MCO1 para poder medir la señal
-	 * en un osciloscopio
-	 */
-	 //Limpiamos esa parte del registro
-	RCC->CFGR &= ~RCC_CFGR_MCO1PRE;
-
-	//Configuramos esa parte del registro
-	RCC->CFGR |= (0b110 << RCC_CFGR_MCO1PRE_Pos);
-
 
 	/*8. Activamos el PLL*/
 	RCC->CR |= RCC_CR_PLLON;

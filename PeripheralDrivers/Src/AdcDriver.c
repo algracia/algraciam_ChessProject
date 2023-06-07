@@ -11,9 +11,12 @@
 GPIO_Handler_t handlerAdcPin = {0};
 uint16_t	adcRawData = 0;
 
-void adc_Config(ADC_Config_t *adcConfig){
+void ADC_ConfigMultichannel (ADC_Config_t *adcConfig, uint8_t numeroDeCanales){
+
 	/* 1. Configuramos el PinX para que cumpla la función de canal análogo deseado. */
-	configAnalogPin(adcConfig->channel);
+	for(uint8_t i =0 ; i < numeroDeCanales; i++){
+		configAnalogPin(adcConfig->channel[i]);
+	}
 
 	/* 2. Activamos la señal de reloj para el periférico ADC1 (bus APB2)*/
 	RCC->APB2ENR |= RCC_APB2ENR_ADC1EN;
@@ -59,8 +62,8 @@ void adc_Config(ADC_Config_t *adcConfig){
 	}
 	}
 
-	/* 4. Configuramos el modo Scan como desactivado */
-	ADC1->CR1 &= ~ADC_CR1_SCAN;
+	/* 4. Configuramos el modo Scan como activo */
+	ADC1->CR1 |= ADC_CR1_SCAN;
 
 	/* 5. Configuramos la alineación de los datos (derecha o izquierda) */
 	if(adcConfig->dataAlignment == ADC_ALIGNMENT_RIGHT){
@@ -76,31 +79,51 @@ void adc_Config(ADC_Config_t *adcConfig){
 	/* 6. Desactivamos el "continuos mode" */
 	ADC1->CR2 &= ~ADC_CR2_CONT;
 
-	/* 7. Acá se debería configurar el sampling...*/
-	if(adcConfig->channel <= ADC_CHANNEL_9){
-		//Primero limpiamos la posicion del registro requerida
-		ADC1->SMPR2 &= ~(0b111 << (3*adcConfig->channel));
+	for(uint8_t i =0 ; i < numeroDeCanales; i++){
+		/* 7. Acá se debería configurar el sampling...*/
+		if (adcConfig->channel[i] <= ADC_CHANNEL_9) {
+			//Primero limpiamos la posicion del registro requerida
+			ADC1->SMPR2 &= ~(0b111 << (3 * adcConfig->channel[i]));
 
-		//Escribimos la configuracion del sampling requerido
-		ADC1->SMPR2 |= (adcConfig->samplingPeriod << (3*adcConfig->channel));
-	}
-	else{
-		//Primero limpiamos la posicion del registro requerida
-		ADC1->SMPR1 &= ~(0b111 << (3*(adcConfig->channel -10)));
+			//Escribimos la configuracion del sampling requerido
+			ADC1->SMPR2 |= (adcConfig->samplingPeriod[i] << (3 * adcConfig->channel[i]));
+		}
+		else {
+			//Primero limpiamos la posicion del registro requerida
+			ADC1->SMPR1 &= ~(0b111 << (3 * (adcConfig->channel[i] - 10)));
 
-		//Escribimos la configuracion del sampling requerido
-		ADC1->SMPR1 |= (adcConfig->samplingPeriod << (3*(adcConfig->channel -10)));
+			//Escribimos la configuracion del sampling requerido
+			ADC1->SMPR1 |= (adcConfig->samplingPeriod[i] << (3 * (adcConfig->channel[i] - 10)));
+		}
 	}
+
 
 	/* 8. Configuramos la secuencia y cuantos elementos hay en la secuencia */
-	// Al hacerlo todo 0, estamos seleccionando solo 1 elemento en el conteo de la secuencia
 	ADC1->SQR1 = 0;
+	ADC1->SQR2 = 0;
+	ADC1->SQR3 = 0;
 
-	// Asignamos el canal de la conversión a la primera posición en la secuencia
-	ADC1->SQR3 |= (adcConfig->channel << 0);
+	//Ingresamos el numero de conversiones que se van a hacer
+	ADC1->SQR1 |= ((numeroDeCanales - 1) << ADC_SQR1_L_Pos);
 
-	/* 9. Configuramos el preescaler del ADC en 2:1 (el mas rápido que se puede tener */
+	// Asignamos el canal de la conversión en la secuencia
+	for(uint8_t i =0 ; i < numeroDeCanales; i++){
+
+		if(i < 6){
+			ADC1->SQR3 |= (adcConfig->channel[i] << (5 * i));
+		}
+		else if (6<= i && i < 12){
+			ADC1->SQR2 |= (adcConfig->channel[i] << (5 * (i-6)));
+		}
+		else{
+			ADC1->SQR1 |= (adcConfig->channel[i] << (5 * (i-12)));
+		}
+	}
+
+
+	/* 9. Configuramos el preescaler del ADC en 4:1 */
 	ADC->CCR &= ~ADC_CCR_ADCPRE;
+	ADC->CCR |= ADC_CCR_ADCPRE_0;
 
 	/* 10. Desactivamos las interrupciones globales */
     __disable_irq();
@@ -119,6 +142,22 @@ void adc_Config(ADC_Config_t *adcConfig){
 
 	/* 13. Activamos las interrupciones globales */
 	__enable_irq();
+
+	/* Limpiamos el bit del overrun (CR1) */
+	//Limpiamos en el SR
+	ADC1->SR &= ~ADC_SR_OVR;
+
+	//Limpiamos el CR1
+	ADC1->CR1 &= ~ADC_CR1_OVRIE;
+
+	/*Configuramos el tipo del Edge*/
+	ADC1->CR2 &= ~ADC_CR2_EXTEN;
+	ADC1->CR2 |= (adcConfig->edgeType << ADC_CR2_EXTEN_Pos);
+
+	/*Configuramos el canal del timer*/
+	ADC1->CR2 &= ~ADC_CR2_EXTSEL;
+	ADC1->CR2 |= (adcConfig->extSelect << ADC_CR2_EXTSEL_Pos);
+
 }
 
 /*
@@ -141,6 +180,7 @@ void startSingleADC(void){
 
 	/* Iniciamos un ciclo de conversión ADC (CR2)*/
 	ADC1->CR2 |= ADC_CR2_SWSTART;
+
 
 }
 
@@ -316,3 +356,8 @@ void configAnalogPin(uint8_t adcChannel) {
 	handlerAdcPin.GPIO_PinConfig.GPIO_PinMode = GPIO_MODE_ANALOG;
 	GPIO_Config(&handlerAdcPin);
 }
+
+
+
+
+

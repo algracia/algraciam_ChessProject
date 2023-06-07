@@ -9,6 +9,7 @@
 #include "USARTxDriver.h"
 
 char sendingData =0;
+uint8_t busy =0;
 /**
  * Configurando el puerto Serial...
  * Recordar que siempre se debe comenzar con activar la señal de reloj
@@ -251,12 +252,13 @@ void writeMsg(USART_Handler_t *ptrUsartHandler, char *MsgToSend ){
 
 	//Renicializamos la variable iteradora del while
 	//Esta ira aumentado dentro de la IRQ
-	iter=0;
+	iter = 0;
 
 	while(MsgToSend[iter] != '\0'){
-	writeChar(ptrUsartHandler, MsgToSend[iter]);
+		writeChar(ptrUsartHandler, MsgToSend[iter]);
 	}
 
+	busy =0;
 }
 
 /*Funcion de lecutra del caracter que llega por la interface serial*/
@@ -280,11 +282,20 @@ void USART1_IRQHandler (void){
 	else if (USART1->SR & USART_SR_TXE){
 
 		/*Enviamos el dato*/
-		USART1->DR = sendingData;
+		if(busy == 0){
+			//Enviamos un primer caracter, solo una vez
+			//Para generar un delay
+			USART1->DR = '\0';
 
-		/*Aumentamos la variable de iteracion
-		 en caso de enviar un mensaje*/
-		iter++;
+			//Subimos la bandera de busy
+			busy =1;
+		}
+		else{
+			USART1->DR = sendingData;
+			/*Aumentamos la variable de iteracion
+			 en caso de enviar un mensaje*/
+			iter++;
+		}
 	}
 }
 
@@ -299,11 +310,20 @@ void USART2_IRQHandler (void){
 	else if (USART2->SR & USART_SR_TXE){
 
 		/*Enviamos el dato*/
-		USART2->DR = sendingData;
+		if(busy == 0){
+			//Enviamos un primer caracter, solo una vez
+			//Para generar un delay
+			USART2->DR = '\0';
 
-		/*Aumentamos la variable de iteracion
-		 * en caso de enviar un mensaje*/
-		iter++;
+			//Subimos la bandera de busy
+			busy =1;
+		}
+		else{
+			USART2->DR = sendingData;
+			/*Aumentamos la variable de iteracion
+			 en caso de enviar un mensaje*/
+			iter++;
+		}
 	}
 }
 
@@ -317,11 +337,20 @@ void USART6_IRQHandler (void){
 	else if (USART6->SR & USART_SR_TXE){
 
 		/*Enviamos el dato*/
-		USART6->DR = sendingData;
+		if(busy == 0){
+			//Enviamos un primer caracter, solo una vez
+			//Para generar un delay
+			USART6->DR = '\0';
 
-		/*Aumentamos la variable de iteracion
-		 * en caso de enviar un mensaje*/
-		iter++;
+			//Subimos la bandera de busy
+			busy =1;
+		}
+		else{
+			USART6->DR = sendingData;
+			/*Aumentamos la variable de iteracion
+			 en caso de enviar un mensaje*/
+			iter++;
+		}
 
 	}
 }

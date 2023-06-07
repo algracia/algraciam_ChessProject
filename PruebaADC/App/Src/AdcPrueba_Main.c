@@ -32,10 +32,13 @@ USART_Handler_t handlerUSART2			={0};
 
 ADC_Config_t handlerADC 				={0};
 
+PWM_Handler_t handlerPWM				={0};
+
 /*Variables*/
 uint8_t USARTDataRecieved 	=0;
 uint8_t adcComplete			=0;
-uint16_t adcData			=0;
+uint16_t adcData[2]			={0};
+uint8_t adcCounter			=0;
 
 char bufferMsg[100] 		={0};
 
@@ -49,15 +52,32 @@ int main(void) {
 	/* Loop forever*/
 	while (1) {
 
-		if(adcComplete){
-			//Vamos a enviar un mensaje a traves del USART
+		if(USARTDataRecieved != '\0'){
 
-			sprintf(bufferMsg, "\nData Canal 1: %u",adcData);
-			writeMsg(&handlerUSART2, bufferMsg);
+			if(USARTDataRecieved == 'w'){
+				if (adcComplete) {
+					//Vamos a enviar un mensaje a traves del USART
 
-			adcComplete = 0;
+					sprintf(bufferMsg, "\nData Canal 1: %u", adcData[0]);
+					writeMsg(&handlerUSART2, bufferMsg);
+
+					adcComplete = 0;
+				}
 		}
+			else if(USARTDataRecieved == 's'){
+				if (adcComplete) {
+					//Vamos a enviar un mensaje a traves del USART
 
+					sprintf(bufferMsg, "\nData Canal 2: %u", adcData[1]);
+					writeMsg(&handlerUSART2, bufferMsg);
+
+					adcComplete = 0;
+				}
+			}
+			else{
+				__NOP();
+			}
+		}
 	}
 }
 
@@ -107,38 +127,61 @@ void initHardware(void){
 
 	USART_Config(&handlerUSART2);
 
-	/*Timer para el ADC*/
-	handlerTimerADC.ptrTIMx								=TIM5;
-	handlerTimerADC.TIMx_Config.TIMx_mode				=BTIMER_MODE_UP;
-	handlerTimerADC.TIMx_Config.TIMx_speed				=BTIMER_SPEED_1ms;
-	handlerTimerADC.TIMx_Config.TIMx_period				=50;
-	handlerTimerADC.TIMx_Config.TIMx_interruptEnable	=BTIMER_INTERRUPT_ENABLE;
-
-	BasicTimer_Config(&handlerTimerADC);
+//	/*Timer para el ADC*/
+//	handlerTimerADC.ptrTIMx								=TIM5;
+//	handlerTimerADC.TIMx_Config.TIMx_mode				=BTIMER_MODE_UP;
+//	handlerTimerADC.TIMx_Config.TIMx_speed				=BTIMER_SPEED_1ms;
+//	handlerTimerADC.TIMx_Config.TIMx_period				=50;
+//	handlerTimerADC.TIMx_Config.TIMx_interruptEnable	=BTIMER_INTERRUPT_ENABLE;
+//
+//	BasicTimer_Config(&handlerTimerADC);
 
 	/*Configuracion ADC*/
-	handlerADC.channel			=ADC_CHANNEL_0;
-	handlerADC.dataAlignment	=ADC_ALIGNMENT_RIGHT;
-	handlerADC.samplingPeriod	=ADC_SAMPLING_PERIOD_84_CYCLES;
-	handlerADC.resolution		=ADC_RESOLUTION_12_BIT;
+	handlerADC.channel[0]			=ADC_CHANNEL_0;
+	handlerADC.channel[1]			=ADC_CHANNEL_8;
+	handlerADC.dataAlignment		=ADC_ALIGNMENT_RIGHT;
+	handlerADC.samplingPeriod[0]	=ADC_SAMPLING_PERIOD_84_CYCLES;
+	handlerADC.samplingPeriod[1]	=ADC_SAMPLING_PERIOD_112_CYCLES;
+	handlerADC.resolution			=ADC_RESOLUTION_12_BIT;
+	handlerADC.edgeType				=ADC_EDGETYPE_RISING;
+	handlerADC.extSelect			=ADC_EXTSEL_TIMER3_CC1;
 
-	adc_Config(&handlerADC);
+	ADC_ConfigMultichannel(&handlerADC, 2);
+
+	/*Configurar PWM*/
+	handlerPWM.ptrTIMx							=TIM3;
+	handlerPWM.config.channel 					=PWM_CHANNEL_1;
+	handlerPWM.config.polarity 					=PWM_POLARITY_ACTIVE_HIGH;
+	handlerPWM.config.prescaler 				=BTIMER_SPEED_1ms;
+	handlerPWM.config.periodo 					=50;
+	handlerPWM.config.pulseWidth 				=25;
+
+	pwm_Config(&handlerPWM);
+	startPwmSignal(&handlerPWM);
+
+	//Dejamos las salidas deshabilitadas en un principio
+	enableOutput(&handlerPWM);
+
 }
 
 void BasicTimer2_Callback(void){
 	GPIOxTooglePin(&handlerOnBoardLed);
 }
 
-void BasicTimer5_Callback(void){
-	startSingleADC();
-}
+//void BasicTimer5_Callback(void){
+//	startSingleADC();
+//}
 
 void usart2Rx_Callback(void){
 	USARTDataRecieved =getRxData();
 }
 
 void adcComplete_Callback(void){
-	adcData = getADC();
+	adcData[adcCounter] = getADC();
+	adcCounter++;
+	if(adcCounter > 1){
+		adcCounter =0;
+	}
 	adcComplete = 1;
 }
 
