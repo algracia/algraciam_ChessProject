@@ -158,6 +158,9 @@ void ADC_ConfigMultichannel (ADC_Config_t *adcConfig, uint8_t numeroDeCanales){
 	ADC1->CR2 &= ~ADC_CR2_EXTSEL;
 	ADC1->CR2 |= (adcConfig->extSelect << ADC_CR2_EXTSEL_Pos);
 
+	/*Finalmente, configuramos el EOCS bit que permite hacer varias conversiones*/
+	ADC1->CR2 |= ADC_CR2_EOCS;
+
 }
 
 /*

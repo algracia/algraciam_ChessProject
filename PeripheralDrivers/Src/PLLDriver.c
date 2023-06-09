@@ -137,6 +137,12 @@ void configPLL(uint8_t PLLN, uint8_t PLLP){
 	//Cargamos la configuracion
 	RCC->CFGR |= RCC_CFGR_PPRE1_2;
 
+	/*Vamos a configurar el trimmer del HSI*/
+	//Limpiamos el valor del registro
+	RCC->CR &= ~RCC_CR_HSITRIM;
+
+	//Cargamos el nuevo valor
+	RCC->CR |= (HSITRIM << RCC_CR_HSITRIM_Pos);
 
 }//Fin funcion PLLConfig
 

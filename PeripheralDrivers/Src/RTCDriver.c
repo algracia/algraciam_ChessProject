@@ -86,7 +86,7 @@ void configRTC(RTC_Handler_t *ptrRTCHandler){
 
 	}else{
 		//Estamos en formato de 24 horas
-		RTC->CR |=  RTC_CR_FMT;
+		RTC->CR &=  ~RTC_CR_FMT;
 		RTC->TR &= ~RTC_TR_PM;
 	}
 

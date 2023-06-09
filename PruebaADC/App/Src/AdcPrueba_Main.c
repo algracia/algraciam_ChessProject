@@ -127,17 +127,8 @@ void initHardware(void){
 
 	USART_Config(&handlerUSART2);
 
-//	/*Timer para el ADC*/
-//	handlerTimerADC.ptrTIMx								=TIM5;
-//	handlerTimerADC.TIMx_Config.TIMx_mode				=BTIMER_MODE_UP;
-//	handlerTimerADC.TIMx_Config.TIMx_speed				=BTIMER_SPEED_1ms;
-//	handlerTimerADC.TIMx_Config.TIMx_period				=50;
-//	handlerTimerADC.TIMx_Config.TIMx_interruptEnable	=BTIMER_INTERRUPT_ENABLE;
-//
-//	BasicTimer_Config(&handlerTimerADC);
-
 	/*Configuracion ADC*/
-	handlerADC.channel[0]			=ADC_CHANNEL_0;
+	handlerADC.channel[0]			=ADC_CHANNEL_1;
 	handlerADC.channel[1]			=ADC_CHANNEL_8;
 	handlerADC.dataAlignment		=ADC_ALIGNMENT_RIGHT;
 	handlerADC.samplingPeriod[0]	=ADC_SAMPLING_PERIOD_84_CYCLES;

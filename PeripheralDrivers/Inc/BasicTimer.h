@@ -20,6 +20,10 @@
 #define BTIMER_80MHz_10us			800
 #define BTIMER_80MHz_100us			8000
 
+#define BTIMER_100MHz_1us			100
+#define BTIMER_100MHz_10us			1000
+#define BTIMER_100MHz_100us			10000
+
 #define BTIMER_INTERRUPT_ENABLE		0
 #define BTIMER_INTERRUPT_DISABLE	1
 
