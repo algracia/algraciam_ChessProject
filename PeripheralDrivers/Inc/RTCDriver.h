@@ -64,6 +64,10 @@ uint8_t getRTCmonth(void);
 uint8_t getRTCyear(void);
 uint8_t getRTCweekDay(void);
 
+void ChangeRTChour(RTC_Handler_t *ptrRTCHandler);
+void ChangeRTCdate(RTC_Handler_t *ptrRTCHandler);
+
 void DividirDecenasYunidades(uint8_t numero);
+void VerificarConfiguracionRTC(RTC_Handler_t *ptrRTCHandler);
 
 #endif /* RTCDRIVER_H_ */

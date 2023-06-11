@@ -281,21 +281,26 @@ void USART1_IRQHandler (void){
 	//Evaluamos si fue por TX
 	else if (USART1->SR & USART_SR_TXE){
 
-		/*Enviamos el dato*/
-		if(busy == 0){
-			//Enviamos un primer caracter, solo una vez
-			//Para generar un delay
-			USART1->DR = '\0';
+		USART1->DR = sendingData;
+		/*Aumentamos la variable de iteracion
+		 en caso de enviar un mensaje*/
+		iter++;
 
-			//Subimos la bandera de busy
-			busy =1;
-		}
-		else{
-			USART1->DR = sendingData;
-			/*Aumentamos la variable de iteracion
-			 en caso de enviar un mensaje*/
-			iter++;
-		}
+//		/*Enviamos el dato*/
+//		if(busy == 0){
+//			//Enviamos un primer caracter, solo una vez
+//			//Para generar un delay
+//			USART1->DR = '\0';
+//
+//			//Subimos la bandera de busy
+//			busy =1;
+//		}
+//		else{
+//			USART1->DR = sendingData;
+//			/*Aumentamos la variable de iteracion
+//			 en caso de enviar un mensaje*/
+//			iter++;
+//		}
 	}
 }
 
@@ -341,21 +346,26 @@ void USART6_IRQHandler (void){
 	//Evaluamos si fue por TX
 	else if (USART6->SR & USART_SR_TXE){
 
-		/*Enviamos el dato*/
-		if(busy == 0){
-			//Enviamos un primer caracter, solo una vez
-			//Para generar un delay
-			USART6->DR = '\0';
+		USART6->DR = sendingData;
+		/*Aumentamos la variable de iteracion
+		 en caso de enviar un mensaje*/
+		iter++;
 
-			//Subimos la bandera de busy
-			busy =1;
-		}
-		else{
-			USART6->DR = sendingData;
-			/*Aumentamos la variable de iteracion
-			 en caso de enviar un mensaje*/
-			iter++;
-		}
+//		/*Enviamos el dato*/
+//		if(busy == 0){
+//			//Enviamos un primer caracter, solo una vez
+//			//Para generar un delay
+//			USART6->DR = '\0';
+//
+//			//Subimos la bandera de busy
+//			busy =1;
+//		}
+//		else{
+//			USART6->DR = sendingData;
+//			/*Aumentamos la variable de iteracion
+//			 en caso de enviar un mensaje*/
+//			iter++;
+//		}
 
 	}
 }

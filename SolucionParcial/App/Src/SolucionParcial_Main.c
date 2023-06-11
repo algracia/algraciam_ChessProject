@@ -105,6 +105,8 @@ uint8_t  adcCounter			=0;
 uint16_t dataCounter		=0;
 uint16_t adcDataC1[256]		={0};
 uint16_t adcDataC2[256]		={0};
+uint16_t periodoMuestreo =0;
+float auxPeriodoMuestreo =0;
 
 //ACCEL
 uint8_t flagMuestreo						=0;
@@ -124,9 +126,9 @@ arm_status statusInitFFT = ARM_MATH_ARGUMENT_ERROR;
 uint16_t fftSize = 1024;
 float32_t transformedSignal[ACCEL_DATASIZE] 		={0};
 float32_t abslotueTransformedSignal[ACCEL_DATASIZE] ={0};
-float32_t frecuenciaSeñal		=0;
 float32_t amplitudMax			=0;
 uint16_t indiceMax				=0;
+float frecuenciaSeñal			=0;
 
 
 /*Headers de funciones*/
@@ -148,7 +150,7 @@ int main(void) {
 
 	InitHardware();
 	configPLL(HSI_100MHz_PLLN, HSI_100MHz_PLLP);
-	ChangeUSART_BRR(&handlerUSART, 50);
+	ChangeUSART_BRR(&handlerUSART, 100);
 	ChangeClockI2C(&handlerAcelerometro, 50);
 
 	/* Loop forever*/
@@ -204,21 +206,21 @@ void InitHardware(void){
 	/*Configuramos la comunicacion serial*/
 	//Configuramos pines para la comunicacion serial
 	handlerPinTX.pGPIOx 								= GPIOA;
-	handlerPinTX.GPIO_PinConfig.GPIO_PinNumber 			= PIN_2;
+	handlerPinTX.GPIO_PinConfig.GPIO_PinNumber 			= PIN_11;
 	handlerPinTX.GPIO_PinConfig.GPIO_PinMode 			= GPIO_MODE_ALTFN;
-	handlerPinTX.GPIO_PinConfig.GPIO_PinAltFunMode 		= AF7;
+	handlerPinTX.GPIO_PinConfig.GPIO_PinAltFunMode 		= AF8;
 
 	handlerPinRX.pGPIOx 								= GPIOA;
-	handlerPinRX.GPIO_PinConfig.GPIO_PinNumber 			= PIN_3;
+	handlerPinRX.GPIO_PinConfig.GPIO_PinNumber 			= PIN_12;
 	handlerPinRX.GPIO_PinConfig.GPIO_PinMode 			= GPIO_MODE_ALTFN;
-	handlerPinRX.GPIO_PinConfig.GPIO_PinAltFunMode 		= AF7;
+	handlerPinRX.GPIO_PinConfig.GPIO_PinAltFunMode 		= AF8;
 
 	//Cargamos las configuraciones
 	GPIO_Config(&handlerPinTX);
 	GPIO_Config(&handlerPinRX);
 
 	//Configuramos el USART
-	handlerUSART.ptrUSARTx 							= USART2;
+	handlerUSART.ptrUSARTx 							= USART6;
 	handlerUSART.USART_Config.USART_baudrate 		= USART_BAUDRATE_115200;
 	handlerUSART.USART_Config.USART_datasize 		= USART_DATASIZE_8BIT;
 	handlerUSART.USART_Config.USART_mode			= USART_MODE_RXTX;
@@ -411,7 +413,7 @@ void parseCommands(char *ptrRecievedMsg){
 		writeMsg(&handlerUSART, "5) MCO1clock 0 0 0 reloj --Se configura el reloj del MCO1 segun el nombre de reloj que se ingrese.\n\n");
 		writeMsg(&handlerUSART, "6) datosACCEL 0 0 0 eje  --Obtenemos e imprimimos los datos del acelerometro en el eje indicado.\n\n");
 		writeMsg(&handlerUSART, "7) FFT 0 0 0 eje --Hacemos la transformada de fourier de los datos en el eje que queramos\n\n");
-		writeMsg(&handlerUSART, "8) RTC_formato #formato --Cargamos en numero si el formato de las horas va a ser de 12 o 24\n\n");
+		writeMsg(&handlerUSART, "8) RTC_formato #formato --Cargamos en numero si el formato de las horas va a ser de 12 o 24 (es de 12hrs por defecto)\n\n");
 		writeMsg(&handlerUSART, "9) RTC_hora #hora #minutos #segundos am_pm --Cargamos la hora en el RTC(En el formato 24hrs el am_pm no afecta)\n\n");
 		writeMsg(&handlerUSART, "10) RTC_fecha #dia #mes #año diaSemana --Cargamos la fecha en el RTC\n\n");
 		writeMsg(&handlerUSART, "11) RTC_enConsola --Imprime en consola todos los datos instantaneos del RTC \n\n");
@@ -557,10 +559,12 @@ void parseCommands(char *ptrRecievedMsg){
 
 		case 12:{
 			 ConfigurarRTC_formato(RTC_FORMATO_12HORAS);
+			 writeMsg(&handlerUSART, "El RTC esta en formato 12hrs\n");
 			 break;
 		}
 		case 24:{
 			 ConfigurarRTC_formato(RTC_FORMATO_24HORAS);
+			 writeMsg(&handlerUSART, "El RTC esta en formato 24hrs\n");
 			 break;
 		}
 		default:{
@@ -572,18 +576,26 @@ void parseCommands(char *ptrRecievedMsg){
 
 	else if (strcmp(cmd, "RTC_hora") == 0){
 
-		if (strcmp(string, "am") == 0){
+		if(handlerRTC.formatoHora == RTC_FORMATO_12HORAS){
+			if (strcmp(string, "am") == 0) {
 
-			ConfigurarRTC_hora(firstParameter, secondParameter, thirdParameter, RTC_AM);
+				ConfigurarRTC_hora(firstParameter, secondParameter,thirdParameter, RTC_AM);
+				writeMsg(&handlerUSART, "La hora se configuró adecuadamente\n");
+			}
+
+			else if (strcmp(string, "pm") == 0) {
+
+				ConfigurarRTC_hora(firstParameter, secondParameter,thirdParameter, RTC_PM);
+				writeMsg(&handlerUSART, "La hora se configuró adecuadamente\n");
+			}
+
+			else {
+				writeMsg(&handlerUSART, "Ingrese un valor valido de am o pm\n");
+			}
 		}
-
-		else if (strcmp(string, "pm") == 0){
-
-			ConfigurarRTC_hora(firstParameter, secondParameter, thirdParameter, RTC_PM);
-		}
-
 		else{
-			writeMsg(&handlerUSART, "Ingrese un valor valido de am o pm\n");
+			ConfigurarRTC_hora(firstParameter, secondParameter,thirdParameter, RTC_AM);
+			writeMsg(&handlerUSART, "La hora se configuró adecuadamente\n");
 		}
 	}
 
@@ -592,30 +604,37 @@ void parseCommands(char *ptrRecievedMsg){
 
 		if (strcmp(string, "lunes") == 0){
 			ConfigurarRTC_fecha(firstParameter, secondParameter, thirdParameter, LUNES);
+			writeMsg(&handlerUSART, "La fecha se configuró adecuadamente\n");
 		}
 
 		else if (strcmp(string, "martes") == 0){
 			ConfigurarRTC_fecha(firstParameter, secondParameter, thirdParameter, MARTES);
+			writeMsg(&handlerUSART, "La fecha se configuró adecuadamente\n");
 		}
 
 		else if (strcmp(string, "miercoles") == 0){
 			ConfigurarRTC_fecha(firstParameter, secondParameter, thirdParameter, MIERCOLES);
+			writeMsg(&handlerUSART, "La fecha se configuró adecuadamente\n");
 		}
 
 		else if (strcmp(string, "jueves") == 0){
 			ConfigurarRTC_fecha(firstParameter, secondParameter, thirdParameter, JUEVES);
+			writeMsg(&handlerUSART, "La fecha se configuró adecuadamente\n");
 		}
 
 		else if (strcmp(string, "viernes") == 0){
 			ConfigurarRTC_fecha(firstParameter, secondParameter, thirdParameter, VIERNES);
+			writeMsg(&handlerUSART, "La fecha se configuró adecuadamente\n");
 		}
 
 		else if (strcmp(string, "sabado") == 0){
 			ConfigurarRTC_fecha(firstParameter, secondParameter, thirdParameter, SABADO);
+			writeMsg(&handlerUSART, "La fecha se configuró adecuadamente\n");
 		}
 
 		else if (strcmp(string, "domingo") == 0){
 			ConfigurarRTC_fecha(firstParameter, secondParameter, thirdParameter, DOMINGO);
+			writeMsg(&handlerUSART, "La fecha se configuró adecuadamente\n");
 		}
 
 		else{
@@ -625,13 +644,18 @@ void parseCommands(char *ptrRecievedMsg){
 
 	else if (strcmp(cmd, "RTC_enConsola") == 0){
 
-		/*Enviamos los datos de la hora*/
-		if(handlerRTC.am_pm == 0 ){
-			sprintf(bufferMsg,"Hora -> %u:%u:%u %s\n",hora,minutos,segundos,"am");
-			writeMsg(&handlerUSART, bufferMsg);
+		if(handlerRTC.formatoHora == RTC_FORMATO_12HORAS){
+			/*Enviamos los datos de la hora*/
+			if (handlerRTC.am_pm == 0) {
+				sprintf(bufferMsg, "Hora -> %u:%u:%u %s\n", hora, minutos, segundos, "am");
+				writeMsg(&handlerUSART, bufferMsg);
+			} else {
+				sprintf(bufferMsg, "Hora -> %u:%u:%u %s\n", hora, minutos, segundos, "pm");
+				writeMsg(&handlerUSART, bufferMsg);
+			}
 		}
 		else{
-			sprintf(bufferMsg,"Hora -> %u:%u:%u %s\n",hora,minutos,segundos,"pm");
+			sprintf(bufferMsg, "Hora -> %u:%u:%u\n", hora, minutos, segundos);
 			writeMsg(&handlerUSART, bufferMsg);
 		}
 
@@ -724,9 +748,11 @@ void CambiarPeriodoMuestreo(uint16_t frecuenciaMuestreo){
 	//a al valor necesario para muestrear la frecuencia minima
 	//Siguiendo que  la frecuencia de muestreo debe ser almenos
 	//10 veces mayor que la frecuencia de la señal de entrada
-	uint16_t periodoMuestreo =0;
 
-	periodoMuestreo = 1/frecuenciaMuestreo;
+
+	auxPeriodoMuestreo = (1000000/frecuenciaMuestreo) ;
+
+	periodoMuestreo = (uint16_t) auxPeriodoMuestreo;
 
 	if(periodoMuestreo > 125){
 
@@ -882,7 +908,7 @@ void HacerFFT(float32_t *ptrDatosFFT){
 				}
 			}
 
-			frecuenciaSeñal = (FRECUENCIA_MUESTREO_FFT/fftSize) * indiceMax;
+			frecuenciaSeñal = (FRECUENCIA_MUESTREO_FFT / (float) fftSize) * (float) indiceMax;
 			sprintf(bufferMsg, "La frecuencia fundamental de la señal es: %.2f Hz\n",frecuenciaSeñal);
 			writeMsg(&handlerUSART, bufferMsg);
 		}
@@ -911,7 +937,7 @@ void ConfigurarRTC_hora(uint8_t rtcHora, uint8_t rtcMinutos, uint8_t rtcSegundos
 	handlerRTC.segundos = rtcSegundos;
 	handlerRTC.am_pm 	= rtcAm_pm;
 
-	configRTC(&handlerRTC);
+	ChangeRTChour(&handlerRTC);
 }
 
 void ConfigurarRTC_fecha(uint8_t rtcDia, uint8_t rtcMes, uint8_t rtcAño, uint8_t rtcDiaSemana){
@@ -922,7 +948,7 @@ void ConfigurarRTC_fecha(uint8_t rtcDia, uint8_t rtcMes, uint8_t rtcAño, uint8_
 	handlerRTC.año 			= rtcAño;
 	handlerRTC.diaSemana 	= rtcDiaSemana;
 
-	configRTC(&handlerRTC);
+	ChangeRTCdate(&handlerRTC);
 }
 
 void StringDiaSemana(uint8_t rtcDiaSemana){
@@ -961,7 +987,7 @@ void StringDiaSemana(uint8_t rtcDiaSemana){
 
 /*Callbacks*/
 
-void usart2Rx_Callback(void){
+void usart6Rx_Callback(void){
 	USARTDataRecieved =getRxData();
 }
 

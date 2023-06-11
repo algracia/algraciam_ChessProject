@@ -17,55 +17,7 @@ void configRTC(RTC_Handler_t *ptrRTCHandler){
 	/*0 Verificamos que los datos ingresados en el main tiene sentido
 	 * y en caso de no tenerlo, los ajustamos
 	 */
-	/*Revisamos la hora*/
-	if(ptrRTCHandler->formatoHora == RTC_FORMATO_12HORAS){
-		//Si se seleccionó el formato 12 horas
-
-		if(ptrRTCHandler->hora > 12){
-			ptrRTCHandler->hora = 12;
-			//Con esto no permitimos que, en este formato,
-			//la no hora no se pase de las 12
-		}
-		else if(ptrRTCHandler->hora < 1){
-			ptrRTCHandler->hora = 1;
-			//Por otro lado, tampoco permitimos que el
-			//valor baje de 1
-		}
-	}
-	else{
-		//En este caso, estamos en el formato 24 horas
-		//Solo nos interesa si las horas se pasan de 23
-		if(ptrRTCHandler->hora > 23){
-			ptrRTCHandler->hora = 23;
-		}
-	}
-
-	/*Revisamos los minutos*/
-	if(ptrRTCHandler->minutos > 60){
-		ptrRTCHandler->minutos = 60;
-	}
-
-	/*Revisamos los segundos*/
-	if(ptrRTCHandler->segundos > 60){
-		ptrRTCHandler->segundos = 60;
-	}
-
-	/*Revisamos los meses*/
-	if(ptrRTCHandler->mes > 12){
-		ptrRTCHandler->mes = 12;
-	}
-	else if(ptrRTCHandler->mes < 1){
-		ptrRTCHandler->mes = 1;
-	}
-
-	/*Revisamos los dias*/
-	if(ptrRTCHandler->fecha > 31){
-		ptrRTCHandler->fecha = 31;
-	}
-	else if(ptrRTCHandler->fecha < 1){
-		ptrRTCHandler->fecha = 1;
-	}
-
+	VerificarConfiguracionRTC(ptrRTCHandler);
 
 	/*1. Hay que desactivar las protecciones de escritura
 	 * en los registros de este periferico
@@ -361,6 +313,146 @@ uint8_t getRTCweekDay(void){
 	return diaSemana;
 }
 
+/*Funcion para actualizar la hora*/
+void ChangeRTChour(RTC_Handler_t *ptrRTCHandler){
+
+	/*Verificamos que los datos sean correctos*/
+	VerificarConfiguracionRTC(ptrRTCHandler);
+
+	/*Indicamos que estamos en modo de inicializacion*/
+	RTC->ISR |= RTC_ISR_INIT;
+
+	//Revisamos la bandera del modo de inicializacion
+	while(!(RTC->ISR & RTC_ISR_INITF)){
+		__NOP();
+	}
+
+	/*Fijamos el formato de la hora*/
+	if(ptrRTCHandler->formatoHora == RTC_FORMATO_12HORAS){
+		//Estamos en formato de 12 horas
+		RTC->CR |= RTC_CR_FMT;
+
+		//Ahora, indicamos si va a ser PM o AM
+		if(ptrRTCHandler->am_pm == RTC_PM){
+			//Es PM
+			RTC->TR |= RTC_TR_PM;
+		}
+		else{
+			//Es AM
+			RTC->TR &= ~RTC_TR_PM;
+		}
+
+	}else{
+		//Estamos en formato de 24 horas
+		RTC->CR &=  ~RTC_CR_FMT;
+		RTC->TR &= ~RTC_TR_PM;
+	}
+
+	/*Cargamos la hora*/
+	//Primero dividimos las decenas de las unidades
+	DividirDecenasYunidades(ptrRTCHandler->hora);
+
+	//Cargamos la decenas de la hora
+	RTC->TR &= ~RTC_TR_HT; //Limpiamos
+
+	RTC->TR |= (decenas << RTC_TR_HT_Pos);
+
+	//Cargamos las unidades de la hora
+	RTC->TR &= ~RTC_TR_HU; //Limpiamos
+
+	RTC->TR |= (unidades << RTC_TR_HU_Pos);
+
+	/*Cargamos los minutos*/
+	//Nuevamente dividimos las decenas de las unidades
+	DividirDecenasYunidades(ptrRTCHandler->minutos);
+
+	//Cargamos la decenas de los minutos
+	RTC->TR &= ~RTC_TR_MNT; //Limpiamos
+
+	RTC->TR |= (decenas << RTC_TR_MNT_Pos);
+
+	//Cargamos las unidades de los minutos
+	RTC->TR &= ~RTC_TR_MNU; //Limpiamos
+
+	RTC->TR |= (unidades << RTC_TR_MNU_Pos);
+
+	/*Cargamos los segundos*/
+	//Nuevamente dividimos las decenas de las unidades
+	DividirDecenasYunidades(ptrRTCHandler->segundos);
+
+	//Cargamos la decenas de los segundos
+	RTC->TR &= ~RTC_TR_ST; //Limpiamos
+
+	RTC->TR |= (decenas << RTC_TR_ST_Pos);
+
+	//Cargamos las unidades de los segundos
+	RTC->TR &= ~RTC_TR_SU; //Limpiamos
+
+	RTC->TR |= (unidades << RTC_TR_SU_Pos);
+
+	/*Desactivamos el modo de inicializacion*/
+	RTC->ISR &= ~RTC_ISR_INIT;
+
+}
+
+/*Funcion para actualizar la fecha*/
+void ChangeRTCdate(RTC_Handler_t *ptrRTCHandler){
+
+	/*Verificamos que los datos sean correctos*/
+	VerificarConfiguracionRTC(ptrRTCHandler);
+
+	/*Indicamos que estamos en modo de inicializacion*/
+	RTC->ISR |= RTC_ISR_INIT;
+
+	//Revisamos la bandera del modo de inicializacion
+	while(!(RTC->ISR & RTC_ISR_INITF)){
+		__NOP();
+	}
+
+	/*Configuramos el calendario*/
+	//Limpiamos el registro encargado de esto
+	RTC->DR =0;
+
+	/*Cargamos el año*/
+	//Nuevamente dividimos las decenas de las unidades
+	DividirDecenasYunidades(ptrRTCHandler->año);
+
+	//Cargamos la decenas del año
+	RTC->DR |= (decenas << RTC_DR_YT_Pos);
+
+	//CarDamos las unidades del año
+	RTC->DR |= (unidades << RTC_DR_YU_Pos);
+
+	/*Cargamos la fecha*/
+	//Nuevamente dividimos las decenas de las unidades
+	DividirDecenasYunidades(ptrRTCHandler->fecha);
+
+	//Cargamos la decenas de la fecha
+	RTC->DR |= (decenas << RTC_DR_DT_Pos);
+
+	//CarDamos las unidades de la fecha
+	RTC->DR |= (unidades << RTC_DR_DU_Pos);
+
+	/*Cargamos el mes*/
+	//Nuevamente dividimos las decenas de las unidades
+	DividirDecenasYunidades(ptrRTCHandler->mes);
+
+	//Cargamos la decenas del mes
+	RTC->DR |= (decenas << RTC_DR_MT_Pos);
+
+	//Cargamos las unidades del mes
+	RTC->DR |= (unidades << RTC_DR_MU_Pos);
+
+
+	/*Cargamos el dia de la semana*/
+	RTC->DR |= (ptrRTCHandler->diaSemana << RTC_DR_WDU_Pos);
+
+	/*Desactivamos el modo de inicializacion*/
+	RTC->ISR &= ~RTC_ISR_INIT;
+
+}
+
+/*Funcion para separar las decenas y las unidades*/
 void DividirDecenasYunidades(uint8_t numero){
 
 	decenas =0;
@@ -380,4 +472,57 @@ void DividirDecenasYunidades(uint8_t numero){
 	* decenas  = 32/10 = 3.2 = 3 (por guardarse en una variable entera)
 	* unidades = 32 - (3*10) = 32 - 30 = 2
 	*/
+}
+
+/*Funcion para verificar que el usuario ingrese bien los datos*/
+void VerificarConfiguracionRTC(RTC_Handler_t *ptrRTCHandler){
+	/*Revisamos la hora*/
+	if(ptrRTCHandler->formatoHora == RTC_FORMATO_12HORAS){
+		//Si se seleccionó el formato 12 horas
+
+		if(ptrRTCHandler->hora > 12){
+			ptrRTCHandler->hora = 12;
+			//Con esto no permitimos que, en este formato,
+			//la no hora no se pase de las 12
+		}
+		else if(ptrRTCHandler->hora < 1){
+			ptrRTCHandler->hora = 1;
+			//Por otro lado, tampoco permitimos que el
+			//valor baje de 1
+		}
+	}
+	else{
+		//En este caso, estamos en el formato 24 horas
+		//Solo nos interesa si las horas se pasan de 23
+		if(ptrRTCHandler->hora >= 24){
+			ptrRTCHandler->hora = 0;
+		}
+	}
+
+	/*Revisamos los minutos*/
+	if(ptrRTCHandler->minutos >= 60){
+		ptrRTCHandler->minutos = 59;
+	}
+
+	/*Revisamos los segundos*/
+	if(ptrRTCHandler->segundos >= 60){
+		ptrRTCHandler->segundos = 59;
+	}
+
+	/*Revisamos los meses*/
+	if(ptrRTCHandler->mes > 12){
+		ptrRTCHandler->mes = 12;
+	}
+	else if(ptrRTCHandler->mes < 1){
+		ptrRTCHandler->mes = 1;
+	}
+
+	/*Revisamos los dias*/
+	if(ptrRTCHandler->fecha > 31){
+		ptrRTCHandler->fecha = 31;
+	}
+	else if(ptrRTCHandler->fecha < 1){
+		ptrRTCHandler->fecha = 1;
+	}
+
 }
