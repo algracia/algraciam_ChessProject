@@ -14,6 +14,59 @@ uint8_t unidades =0;
 
 void configRTC(RTC_Handler_t *ptrRTCHandler){
 
+	/*0 Verificamos que los datos ingresados en el main tiene sentido
+	 * y en caso de no tenerlo, los ajustamos
+	 */
+	/*Revisamos la hora*/
+	if(ptrRTCHandler->formatoHora == RTC_FORMATO_12HORAS){
+		//Si se seleccionó el formato 12 horas
+
+		if(ptrRTCHandler->hora > 12){
+			ptrRTCHandler->hora = 12;
+			//Con esto no permitimos que, en este formato,
+			//la no hora no se pase de las 12
+		}
+		else if(ptrRTCHandler->hora < 1){
+			ptrRTCHandler->hora = 1;
+			//Por otro lado, tampoco permitimos que el
+			//valor baje de 1
+		}
+	}
+	else{
+		//En este caso, estamos en el formato 24 horas
+		//Solo nos interesa si las horas se pasan de 23
+		if(ptrRTCHandler->hora > 23){
+			ptrRTCHandler->hora = 23;
+		}
+	}
+
+	/*Revisamos los minutos*/
+	if(ptrRTCHandler->minutos > 60){
+		ptrRTCHandler->minutos = 60;
+	}
+
+	/*Revisamos los segundos*/
+	if(ptrRTCHandler->segundos > 60){
+		ptrRTCHandler->segundos = 60;
+	}
+
+	/*Revisamos los meses*/
+	if(ptrRTCHandler->mes > 12){
+		ptrRTCHandler->mes = 12;
+	}
+	else if(ptrRTCHandler->mes < 1){
+		ptrRTCHandler->mes = 1;
+	}
+
+	/*Revisamos los dias*/
+	if(ptrRTCHandler->fecha > 31){
+		ptrRTCHandler->fecha = 31;
+	}
+	else if(ptrRTCHandler->fecha < 1){
+		ptrRTCHandler->fecha = 1;
+	}
+
+
 	/*1. Hay que desactivar las protecciones de escritura
 	 * en los registros de este periferico
 	 */

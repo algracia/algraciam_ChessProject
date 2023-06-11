@@ -687,8 +687,8 @@ void InitHardware(void){
 	handlerTimerMuestreo.TIMx_Config.TIMx_speed				=timersPrescaler;
 	handlerTimerMuestreo.TIMx_Config.TIMx_period			=10; //Con esto, el timer va a 1ms (1kHz)
 	handlerTimerMuestreo.TIMx_Config.TIMx_interruptEnable	=BTIMER_INTERRUPT_ENABLE;
-//
-//	BasicTimer_Config(&handlerTimerMuestreo);
+
+	BasicTimer_Config(&handlerTimerMuestreo);
 
 	/*Configuramos los PWM*/
 	//PWM_X
