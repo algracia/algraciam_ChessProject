@@ -52,9 +52,12 @@ GPIO_Handler_t handlerPinRX					={0};
 GPIO_Handler_t handlerMCO1					={0};
 GPIO_Handler_t handlerAccelSDA				={0};
 GPIO_Handler_t handlerAccelSCL				={0};
+GPIO_Handler_t handlerLCDSDA				={0};
+GPIO_Handler_t handlerLCDSCL				={0};
 
 BasicTimer_Handler_t handlerTimerBlinky		={0};
 BasicTimer_Handler_t handlerTimerMuestreo	={0};
+BasicTimer_Handler_t handlerTimerRefresco	={0};
 
 USART_Handler_t handlerUSART				={0};
 
@@ -65,6 +68,7 @@ ADC_Config_t handlerADC						={0};
 PWM_Handler_t handlerPWM					={0};
 
 I2C_Handler_t handlerAcelerometro			={0};
+I2C_Handler_t handlerLCD					={0};
 
 
 /*Variables*/
@@ -79,7 +83,6 @@ char string[64]					={0};
 unsigned int firstParameter 	={0};
 unsigned int secondParameter 	={0};
 unsigned int thirdParameter 	={0};
-
 
 //RTC
 uint8_t hora 				=0;
@@ -130,6 +133,9 @@ float32_t amplitudMax			=0;
 uint16_t indiceMax				=0;
 float frecuenciaSeñal			=0;
 
+//LCD
+uint8_t flagRefresco	=0;
+
 
 /*Headers de funciones*/
 void InitHardware(void);
@@ -152,22 +158,79 @@ int main(void) {
 	configPLL(HSI_100MHz_PLLN, HSI_100MHz_PLLP);
 	ChangeUSART_BRR(&handlerUSART, 100);
 	ChangeClockI2C(&handlerAcelerometro, 50);
+	ChangeClockI2C(&handlerLCD, 50);
 
 	/* Loop forever*/
 	while (1) {
 
-		hora=getRTChours();
-		minutos=getRTCminutes();
-		segundos =getRTCseconds();
-		am_pm=getRTCAmPm();
-		mes=getRTCmonth();
-		año=getRTCyear();
-		dia = getRTCdate();
-		diaSemana = getRTCweekDay();
-
+		/*Ejecutamos la funcion para recibir comandos
+		 * e internamente ella ejecuta todas las demas funciones
+		 */
 		RecibirComando();
 
+		/*Medimos los datos del RTC*/
+		hora		=getRTChours();
+		minutos		=getRTCminutes();
+		segundos 	=getRTCseconds();
+		am_pm		=getRTCAmPm();
+		mes			=getRTCmonth();
+		año			=getRTCyear();
+		dia 		=getRTCdate();
+		diaSemana 	=getRTCweekDay();
 
+		/*Ahora, enviamos dichos datos a la LCD*/
+		if(flagRefresco){
+			//los valores se actualizan solo cada vez que el timer lo indica
+
+			/*Primero mostramos la hora*/
+			//Ubicamos el cursor
+			MoveLCDCursor(&handlerLCD, 1, 0);
+
+			if(handlerRTC.formatoHora == RTC_FORMATO_12HORAS){
+				/*Enviamos los datos de la hora*/
+				if (handlerRTC.am_pm == 0) {
+					sprintf(bufferMsg, "Hora -> %u:%u:%u %s", hora, minutos, segundos, "am");
+					WriteLCDMsg(&handlerLCD, bufferMsg);
+
+				} else {
+					sprintf(bufferMsg, "Hora -> %u:%u:%u %s", hora, minutos, segundos, "pm");
+					WriteLCDMsg(&handlerLCD, bufferMsg);
+				}
+			}
+			else{
+				sprintf(bufferMsg, "Hora -> %u:%u:%u", hora, minutos, segundos);
+				WriteLCDMsg(&handlerLCD, bufferMsg);
+			}
+
+			/*Ahora, enviamos los datos de la fecha*/
+			//Ubicamos el cursor
+			MoveLCDCursor(&handlerLCD, 2, 0);
+
+			StringDiaSemana(diaSemana);
+
+			sprintf(bufferMsg, "Fecha -> %u %u %u", dia, mes, año);
+			WriteLCDMsg(&handlerLCD, bufferMsg);
+
+			//Ubicamos el cursor
+			MoveLCDCursor(&handlerLCD, 3, 0);
+
+			sprintf(bufferMsg, "Dia -> %s",bufferDiaSemana);
+			WriteLCDMsg(&handlerLCD, bufferMsg);
+
+			/*Enviamos cual es el formato del RTC*/
+			//Ubicamos el cursor
+			MoveLCDCursor(&handlerLCD, 4, 0);
+
+			if(handlerRTC.formatoHora == RTC_FORMATO_12HORAS){
+				WriteLCDMsg(&handlerLCD, "Formato 12hrs");
+			}
+			else{
+				WriteLCDMsg(&handlerLCD, "Formato 24hrs");
+			}
+
+			//Bajamos la bandera de muestreo
+			flagRefresco =0;
+		}
 
 	}
 }
@@ -175,8 +238,8 @@ int main(void) {
 void InitHardware(void){
 
 	/*Configuramos el Blinky*/
-	handlerOnBoardLed.pGPIOx 								= GPIOA;
-	handlerOnBoardLed.GPIO_PinConfig.GPIO_PinNumber			= PIN_5;
+	handlerOnBoardLed.pGPIOx 								= GPIOH;
+	handlerOnBoardLed.GPIO_PinConfig.GPIO_PinNumber			= PIN_1;
 	handlerOnBoardLed.GPIO_PinConfig.GPIO_PinMode			= GPIO_MODE_OUT;
 	handlerOnBoardLed.GPIO_PinConfig.GPIO_PinOPType			= GPIO_OTYPE_PUSHPULL;
 	handlerOnBoardLed.GPIO_PinConfig.GPIO_PinPuPdControl	= GPIO_PUPDR_NOTHING;
@@ -298,7 +361,7 @@ void InitHardware(void){
 
 	i2c_config(&handlerAcelerometro);
 
-	/*Configuramos el timer de muestreo del Acelerometro*/
+	//Configuramos el timer de muestreo del Acelerometro
 	handlerTimerMuestreo.ptrTIMx							=TIM4;
 	handlerTimerMuestreo.TIMx_Config.TIMx_mode				=BTIMER_MODE_UP;
 	handlerTimerMuestreo.TIMx_Config.TIMx_speed				=BTIMER_100MHz_100us;
@@ -307,11 +370,52 @@ void InitHardware(void){
 
 	BasicTimer_Config(&handlerTimerMuestreo);
 
+	/*Configuramos el I2C de la pantalla LCD*/
+	//Configuramos los pines
+	handlerLCDSCL.pGPIOx 								= GPIOB;
+	handlerLCDSCL.GPIO_PinConfig.GPIO_PinNumber			= PIN_10;
+	handlerLCDSCL.GPIO_PinConfig.GPIO_PinMode			= GPIO_MODE_ALTFN;
+	handlerLCDSCL.GPIO_PinConfig.GPIO_PinOPType			= GPIO_OTYPE_OPENDRAIN;
+	handlerLCDSCL.GPIO_PinConfig.GPIO_PinPuPdControl	= GPIO_PUPDR_NOTHING;
+	handlerLCDSCL.GPIO_PinConfig.GPIO_PinSpeed			= GPIO_OSPEED_FAST;
+	handlerLCDSCL.GPIO_PinConfig.GPIO_PinAltFunMode 	= AF4;
+
+	handlerLCDSDA.pGPIOx 								= GPIOB;
+	handlerLCDSDA.GPIO_PinConfig.GPIO_PinNumber			= PIN_3;
+	handlerLCDSDA.GPIO_PinConfig.GPIO_PinMode			= GPIO_MODE_ALTFN;
+	handlerLCDSDA.GPIO_PinConfig.GPIO_PinOPType			= GPIO_OTYPE_OPENDRAIN;
+	handlerLCDSDA.GPIO_PinConfig.GPIO_PinPuPdControl	= GPIO_PUPDR_NOTHING;
+	handlerLCDSDA.GPIO_PinConfig.GPIO_PinSpeed			= GPIO_OSPEED_FAST;
+	handlerLCDSDA.GPIO_PinConfig.GPIO_PinAltFunMode 	= AF9;
+
+	GPIO_Config(&handlerLCDSCL);
+	GPIO_Config(&handlerLCDSDA);
+
+	//Configuramos el I2C
+	handlerLCD.ptrI2Cx			=I2C2;
+	handlerLCD.modeI2C 			=I2C_MODE_SM;
+	handlerLCD.slaveAddress		=LCD_ADDRESS_A1JUMPER;
+
+	i2c_config(&handlerLCD);
+
+	//Configuramos la LCD
+	LCD_Config(&handlerLCD);
+
+	//Configuramos un timer para el refresco de la LCD
+	handlerTimerRefresco.ptrTIMx							=TIM5;
+	handlerTimerRefresco.TIMx_Config.TIMx_mode				=BTIMER_MODE_UP;
+	handlerTimerRefresco.TIMx_Config.TIMx_speed				=BTIMER_100MHz_100us;
+	handlerTimerRefresco.TIMx_Config.TIMx_period			=10000; //Con esto, el timer va a 1s
+	handlerTimerRefresco.TIMx_Config.TIMx_interruptEnable	=BTIMER_INTERRUPT_ENABLE;
+
+	BasicTimer_Config(&handlerTimerRefresco);
+
 	/*Vamos a activar la unidad de punto flotante para ciertos calculos*/
 	SCB->CPACR |= (0XF << 20);
 
 }
 
+/*Funcion para configurar el reloj del MCO1*/
 void MCO1clock(uint8_t reloj){
 
 	/*Apagamos el PLL y el LSE (el HSE no hay necesidad
@@ -339,6 +443,7 @@ void MCO1clock(uint8_t reloj){
 	RCC->BDCR |= RCC_BDCR_LSEON;
 }
 
+/*Funcion para configurar el prescaler del MCO1*/
 void MCO1prescaler(uint8_t division){
 
 	/*Apagamos el PLL y el LSE (el HSE no hay necesidad
@@ -366,6 +471,7 @@ void MCO1prescaler(uint8_t division){
 	RCC->BDCR |= RCC_BDCR_LSEON;
 }
 
+/*Funcion para recibir los comandos por USART*/
 void RecibirComando(void){
 
 	/*Primero revisamos si se ingresó un caracter diferente al nulo*/
@@ -398,12 +504,13 @@ void RecibirComando(void){
 	}
 }
 
+/*Funcion que analiza y ejecuta los comandos*/
 void parseCommands(char *ptrRecievedMsg){
 
 	//Partimos el string y lo revisamos
 	sscanf(ptrRecievedMsg,"%s %u %u %u %s",cmd, &firstParameter, &secondParameter, &thirdParameter, string);
 
-	//Este primer comando imprime una lista con los otros comandos que tiene el equipo
+	/*Este primer comando imprime una lista con los otros comandos que tiene el equipo*/
 	if(strcmp(cmd, "help") == 0){
 		writeMsg(&handlerUSART, "Menu de comandos:\n");
 		writeMsg(&handlerUSART, "1) help  --Imprime este menu.\n\n");
@@ -419,13 +526,13 @@ void parseCommands(char *ptrRecievedMsg){
 		writeMsg(&handlerUSART, "11) RTC_enConsola --Imprime en consola todos los datos instantaneos del RTC \n\n");
 	}
 
-	//Procesamos el comando de muestreo del ADC
+	/*Procesamos el comando de muestreo del ADC*/
 	else if(strcmp(cmd, "muestreoADC") == 0){
 		CambiarPeriodoMuestreo(firstParameter);
 
 	}
 
-	//Procesamos el comando de datosADC
+	/*Procesamos el comando de datosADC*/
 	else if(strcmp(cmd, "datosADC") == 0){
 
 		//Habilitamos el PWM
@@ -437,7 +544,7 @@ void parseCommands(char *ptrRecievedMsg){
 		ADCchannelData(firstParameter);
 	}
 
-	//Procesamos el comando de MCO1pre
+	/*Procesamos el comando de MCO1pre*/
 	else if (strcmp(cmd, "MCO1pre") == 0){
 
 		//Modificamos el prescaler del MCO
@@ -492,7 +599,7 @@ void parseCommands(char *ptrRecievedMsg){
 	}
 
 
-	//Procesamos el comando de MCO1clock
+	/*Procesamos el comando de MCO1clock*/
 	else if (strcmp(cmd, "MCO1clock") == 0){
 
 		//Modificamos el reloj del MCO
@@ -525,44 +632,51 @@ void parseCommands(char *ptrRecievedMsg){
 	}
 
 
-
+	/*Procesamos el comando de datosACCEL*/
 	else if (strcmp(cmd, "datosACCEL") == 0){
-
+		//Ejecuatamos la funcion para tomar datos del accel
+		//en el eje indicado en el string
 		DatosAcelerometro(string[0]);
-
 	}
 
-
+	/*Procesamos el comando de FFT*/
 	else if (strcmp(cmd, "FFT") == 0){
 
-
 		if (strcmp(string, "x") == 0){
+			//Se aplica la FFT a los datos del eje x
 			writeMsg(&handlerUSART, "Se le va a hacer la FFT a los datos en el eje X\n");
 			HacerFFT(aceleracionesX);
 		}
 
 		else if (strcmp(string, "y") == 0) {
+			//Se aplica la FFT a los datos del eje y
 			writeMsg(&handlerUSART, "Se le va a hacer la FFT a los datos en el eje Y\n");
 			HacerFFT(aceleracionesY);
 		}
 
 		else if (strcmp(string, "z") == 0){
+			//Se aplica la FFT a los datos del eje z
 			writeMsg(&handlerUSART, "Se le va a hacer la FFT a los datos en el eje Z\n");
 			HacerFFT(aceleracionesZ);
 		}
 
 	}
 
+	/*Procesamos el comando de RTC_formato*/
 	else if (strcmp(cmd, "RTC_formato") == 0){
 
+		//Hacemos un switch que revisa cual es el formato
+		//Indicado por el usuario
 		switch(firstParameter){
 
 		case 12:{
+			//Formato 12hrs
 			 ConfigurarRTC_formato(RTC_FORMATO_12HORAS);
 			 writeMsg(&handlerUSART, "El RTC esta en formato 12hrs\n");
 			 break;
 		}
 		case 24:{
+			//Formato 24hrs
 			 ConfigurarRTC_formato(RTC_FORMATO_24HORAS);
 			 writeMsg(&handlerUSART, "El RTC esta en formato 24hrs\n");
 			 break;
@@ -574,7 +688,11 @@ void parseCommands(char *ptrRecievedMsg){
 		}
 	}
 
+	/*Procesamos el comando de RTC_hora*/
 	else if (strcmp(cmd, "RTC_hora") == 0){
+
+		/*Limpiamos la LCD*/
+		WriteLCDInstruction(&handlerLCD, LCD_INSTRUCTION_DISPLAY_CLEAN);
 
 		if(handlerRTC.formatoHora == RTC_FORMATO_12HORAS){
 			if (strcmp(string, "am") == 0) {
@@ -599,8 +717,11 @@ void parseCommands(char *ptrRecievedMsg){
 		}
 	}
 
-
+	/*Procesamos el comando de RTC_fecha*/
 	else if (strcmp(cmd, "RTC_fecha") == 0){
+
+		/*Limpiamos la LCD*/
+		WriteLCDInstruction(&handlerLCD, LCD_INSTRUCTION_DISPLAY_CLEAN);
 
 		if (strcmp(string, "lunes") == 0){
 			ConfigurarRTC_fecha(firstParameter, secondParameter, thirdParameter, LUNES);
@@ -642,6 +763,7 @@ void parseCommands(char *ptrRecievedMsg){
 		}
 	}
 
+	/*Procesamos el comando de RTC_enConsola*/
 	else if (strcmp(cmd, "RTC_enConsola") == 0){
 
 		if(handlerRTC.formatoHora == RTC_FORMATO_12HORAS){
@@ -773,6 +895,7 @@ void CambiarPeriodoMuestreo(uint16_t frecuenciaMuestreo){
 	writeMsg(&handlerUSART, bufferMsg);
 }
 
+/*Funcion para extraer datos del acelerometro*/
 void DatosAcelerometro(char ejeAceleracion){
 
 	/*Primero hacemos que el acelerometro entre en modo Measure*/
@@ -870,6 +993,7 @@ void DatosAcelerometro(char ejeAceleracion){
 
 }
 
+/*Funcion para ejecutar la FFT*/
 void HacerFFT(float32_t *ptrDatosFFT){
 
 	/*Primero verificamos si hay datos del acelerometro para aplicarle la transformada*/
@@ -882,6 +1006,7 @@ void HacerFFT(float32_t *ptrDatosFFT){
 			writeMsg(&handlerUSART, "Initialization ... SUCESS!\n");
 		}
 
+		//Revisamos si la FFT se inicializo correctamente
 		if(statusInitFFT == ARM_MATH_SUCCESS){
 			//Calculamos la transformada
 			arm_rfft_fast_f32(&config_Rfft_fast_32, ptrDatosFFT, transformedSignal, 0);
@@ -908,6 +1033,9 @@ void HacerFFT(float32_t *ptrDatosFFT){
 				}
 			}
 
+			//La resolucion en la frecuencia esta dada por FRECUENCIA_MUESTREO_FFT / fftSize
+			//Es decir, este valor, es el minimo cambio en la frecuencia que se puede distinguir
+			//Por ende, al multiplicarlo por el indice con la amplitud maxima, obtenemos la frecuencia de la señal
 			frecuenciaSeñal = (FRECUENCIA_MUESTREO_FFT / (float) fftSize) * (float) indiceMax;
 			sprintf(bufferMsg, "La frecuencia fundamental de la señal es: %.2f Hz\n",frecuenciaSeñal);
 			writeMsg(&handlerUSART, bufferMsg);
@@ -921,6 +1049,7 @@ void HacerFFT(float32_t *ptrDatosFFT){
 	}
 }
 
+/*Funcion para actualizar el formato de horas del RTC*/
 void ConfigurarRTC_formato(uint8_t rtcFormato){
 
 	//Actualizamos loa valores del RTC
@@ -929,6 +1058,7 @@ void ConfigurarRTC_formato(uint8_t rtcFormato){
 	configRTC(&handlerRTC);
 }
 
+/*Funcion para actualizar la hora del RTC*/
 void ConfigurarRTC_hora(uint8_t rtcHora, uint8_t rtcMinutos, uint8_t rtcSegundos, uint8_t rtcAm_pm){
 
 	//Actualizamos loa valores del RTC
@@ -940,6 +1070,7 @@ void ConfigurarRTC_hora(uint8_t rtcHora, uint8_t rtcMinutos, uint8_t rtcSegundos
 	ChangeRTChour(&handlerRTC);
 }
 
+/*Funcion para actualizar la fecha del RTC*/
 void ConfigurarRTC_fecha(uint8_t rtcDia, uint8_t rtcMes, uint8_t rtcAño, uint8_t rtcDiaSemana){
 
 	//Actualizamos loa valores del RTC
@@ -951,6 +1082,9 @@ void ConfigurarRTC_fecha(uint8_t rtcDia, uint8_t rtcMes, uint8_t rtcAño, uint8_
 	ChangeRTCdate(&handlerRTC);
 }
 
+/*Funcion para tomar el valor binario de los dias de la semana
+ * y convertirlos en strings para imprimir por USART
+ */
 void StringDiaSemana(uint8_t rtcDiaSemana){
 
 	if(rtcDiaSemana == LUNES){
@@ -983,8 +1117,6 @@ void StringDiaSemana(uint8_t rtcDiaSemana){
 
 }
 
-
-
 /*Callbacks*/
 
 void usart6Rx_Callback(void){
@@ -998,6 +1130,11 @@ void BasicTimer2_Callback(void){
 
 void BasicTimer4_Callback(void){
 	flagMuestreo =1;
+
+}
+
+void BasicTimer5_Callback(void){
+	flagRefresco =1;
 
 }
 
