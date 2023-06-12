@@ -135,6 +135,7 @@ float frecuenciaSeñal			=0;
 
 //LCD
 uint8_t flagRefresco	=0;
+uint8_t LCDflag 		=0;
 
 
 /*Headers de funciones*/
@@ -178,59 +179,63 @@ int main(void) {
 		dia 		=getRTCdate();
 		diaSemana 	=getRTCweekDay();
 
-//		/*Ahora, enviamos dichos datos a la LCD*/
-//		if(flagRefresco){
-//			//los valores se actualizan solo cada vez que el timer lo indica
-//
-//			/*Primero mostramos la hora*/
-//			//Ubicamos el cursor
-//			MoveLCDCursor(&handlerLCD, 1, 0);
-//
-//			if(handlerRTC.formatoHora == RTC_FORMATO_12HORAS){
-//				/*Enviamos los datos de la hora*/
-//				if (handlerRTC.am_pm == 0) {
-//					sprintf(bufferMsg, "Hora -> %u:%u:%u %s", hora, minutos, segundos, "am");
-//					WriteLCDMsg(&handlerLCD, bufferMsg);
-//
-//				} else {
-//					sprintf(bufferMsg, "Hora -> %u:%u:%u %s", hora, minutos, segundos, "pm");
-//					WriteLCDMsg(&handlerLCD, bufferMsg);
-//				}
-//			}
-//			else{
-//				sprintf(bufferMsg, "Hora -> %u:%u:%u", hora, minutos, segundos);
-//				WriteLCDMsg(&handlerLCD, bufferMsg);
-//			}
-//
-//			/*Ahora, enviamos los datos de la fecha*/
-//			//Ubicamos el cursor
-//			MoveLCDCursor(&handlerLCD, 2, 0);
-//
-//			StringDiaSemana(diaSemana);
-//
-//			sprintf(bufferMsg, "Fecha -> %u %u %u", dia, mes, año);
-//			WriteLCDMsg(&handlerLCD, bufferMsg);
-//
-//			//Ubicamos el cursor
-//			MoveLCDCursor(&handlerLCD, 3, 0);
-//
-//			sprintf(bufferMsg, "Dia -> %s",bufferDiaSemana);
-//			WriteLCDMsg(&handlerLCD, bufferMsg);
-//
-//			/*Enviamos cual es el formato del RTC*/
-//			//Ubicamos el cursor
-//			MoveLCDCursor(&handlerLCD, 4, 0);
-//
-//			if(handlerRTC.formatoHora == RTC_FORMATO_12HORAS){
-//				WriteLCDMsg(&handlerLCD, "Formato 12hrs");
-//			}
-//			else{
-//				WriteLCDMsg(&handlerLCD, "Formato 24hrs");
-//			}
-//
-//			//Bajamos la bandera de refresco
-//			flagRefresco =0;
-//		}
+		if(LCDflag){
+			//esta flag indica que se quiere usar la LCD
+
+			/*Ahora, enviamos dichos datos a la LCD*/
+			if(flagRefresco){
+				//los valores se actualizan solo cada vez que el timer lo indica
+
+				/*Primero mostramos la hora*/
+				//Ubicamos el cursor
+				MoveLCDCursor(&handlerLCD, 1, 0);
+
+				if(handlerRTC.formatoHora == RTC_FORMATO_12HORAS){
+					/*Enviamos los datos de la hora*/
+					if (handlerRTC.am_pm == 0) {
+						sprintf(bufferMsg, "Hora -> %u:%u:%u %s", hora, minutos, segundos, "am");
+						WriteLCDMsg(&handlerLCD, bufferMsg);
+
+					} else {
+						sprintf(bufferMsg, "Hora -> %u:%u:%u %s", hora, minutos, segundos, "pm");
+						WriteLCDMsg(&handlerLCD, bufferMsg);
+					}
+				}
+				else{
+					sprintf(bufferMsg, "Hora -> %u:%u:%u", hora, minutos, segundos);
+					WriteLCDMsg(&handlerLCD, bufferMsg);
+				}
+
+				/*Ahora, enviamos los datos de la fecha*/
+				//Ubicamos el cursor
+				MoveLCDCursor(&handlerLCD, 2, 0);
+
+				StringDiaSemana(diaSemana);
+
+				sprintf(bufferMsg, "Fecha -> %u %u %u", dia, mes, año);
+				WriteLCDMsg(&handlerLCD, bufferMsg);
+
+				//Ubicamos el cursor
+				MoveLCDCursor(&handlerLCD, 3, 0);
+
+				sprintf(bufferMsg, "Dia -> %s",bufferDiaSemana);
+				WriteLCDMsg(&handlerLCD, bufferMsg);
+
+				/*Enviamos cual es el formato del RTC*/
+				//Ubicamos el cursor
+				MoveLCDCursor(&handlerLCD, 4, 0);
+
+				if(handlerRTC.formatoHora == RTC_FORMATO_12HORAS){
+					WriteLCDMsg(&handlerLCD, "Formato 12hrs");
+				}
+				else{
+					WriteLCDMsg(&handlerLCD, "Formato 24hrs");
+				}
+
+				//Bajamos la bandera de refresco
+				flagRefresco =0;
+			}
+		}
 
 	}
 }
@@ -524,6 +529,8 @@ void parseCommands(char *ptrRecievedMsg){
 		writeMsg(&handlerUSART, "9) RTC_hora #hora #minutos #segundos am_pm --Cargamos la hora en el RTC(En el formato 24hrs el am_pm no afecta)\n\n");
 		writeMsg(&handlerUSART, "10) RTC_fecha #dia #mes #año diaSemana --Cargamos la fecha en el RTC\n\n");
 		writeMsg(&handlerUSART, "11) RTC_enConsola --Imprime en consola todos los datos instantaneos del RTC \n\n");
+		writeMsg(&handlerUSART, "12) LCD_ON --Muestra los valores del RTC en la LCD. Cabe mencionar que al tenerla activa, la recepcion de comandos se hace algo lenta, por ello no esta activada por defecto\n\n");
+		writeMsg(&handlerUSART, "13) LCD_OFF --Desactiva la LCD\n\n");
 	}
 
 	/*Procesamos el comando de muestreo del ADC*/
@@ -691,8 +698,10 @@ void parseCommands(char *ptrRecievedMsg){
 	/*Procesamos el comando de RTC_hora*/
 	else if (strcmp(cmd, "RTC_hora") == 0){
 
-//		/*Limpiamos la LCD*/
-//		WriteLCDInstruction(&handlerLCD, LCD_INSTRUCTION_DISPLAY_CLEAN);
+		if(LCDflag){
+			/*Limpiamos la LCD*/
+			WriteLCDInstruction(&handlerLCD, LCD_INSTRUCTION_DISPLAY_CLEAN);
+		}
 
 		if(handlerRTC.formatoHora == RTC_FORMATO_12HORAS){
 			if (strcmp(string, "am") == 0) {
@@ -720,8 +729,10 @@ void parseCommands(char *ptrRecievedMsg){
 	/*Procesamos el comando de RTC_fecha*/
 	else if (strcmp(cmd, "RTC_fecha") == 0){
 
-//		/*Limpiamos la LCD*/
-//		WriteLCDInstruction(&handlerLCD, LCD_INSTRUCTION_DISPLAY_CLEAN);
+		if(LCDflag){
+			/*Limpiamos la LCD*/
+			WriteLCDInstruction(&handlerLCD, LCD_INSTRUCTION_DISPLAY_CLEAN);
+		}
 
 		if (strcmp(string, "lunes") == 0){
 			ConfigurarRTC_fecha(firstParameter, secondParameter, thirdParameter, LUNES);
@@ -789,6 +800,21 @@ void parseCommands(char *ptrRecievedMsg){
 
 	}
 
+	else if (strcmp(cmd, "LCD_ON") == 0){
+		//Habilitamos la bandera de la LCD
+		LCDflag =1;
+		writeMsg(&handlerUSART, "Se activó la LCD");
+	}
+
+	else if (strcmp(cmd, "LCD_OFF") == 0){
+		//Deshabilitamos la bandera de la LCD
+		LCDflag =0;
+
+		//Limpiamos la LCD
+		WriteLCDInstruction(&handlerLCD, LCD_INSTRUCTION_DISPLAY_CLEAN);
+
+		writeMsg(&handlerUSART, "Se desactivó la LCD");
+	}
 }
 
 /*Funcion para sacar la informacion de los canales*/
