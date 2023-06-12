@@ -178,59 +178,59 @@ int main(void) {
 		dia 		=getRTCdate();
 		diaSemana 	=getRTCweekDay();
 
-		/*Ahora, enviamos dichos datos a la LCD*/
-		if(flagRefresco){
-			//los valores se actualizan solo cada vez que el timer lo indica
-
-			/*Primero mostramos la hora*/
-			//Ubicamos el cursor
-			MoveLCDCursor(&handlerLCD, 1, 0);
-
-			if(handlerRTC.formatoHora == RTC_FORMATO_12HORAS){
-				/*Enviamos los datos de la hora*/
-				if (handlerRTC.am_pm == 0) {
-					sprintf(bufferMsg, "Hora -> %u:%u:%u %s", hora, minutos, segundos, "am");
-					WriteLCDMsg(&handlerLCD, bufferMsg);
-
-				} else {
-					sprintf(bufferMsg, "Hora -> %u:%u:%u %s", hora, minutos, segundos, "pm");
-					WriteLCDMsg(&handlerLCD, bufferMsg);
-				}
-			}
-			else{
-				sprintf(bufferMsg, "Hora -> %u:%u:%u", hora, minutos, segundos);
-				WriteLCDMsg(&handlerLCD, bufferMsg);
-			}
-
-			/*Ahora, enviamos los datos de la fecha*/
-			//Ubicamos el cursor
-			MoveLCDCursor(&handlerLCD, 2, 0);
-
-			StringDiaSemana(diaSemana);
-
-			sprintf(bufferMsg, "Fecha -> %u %u %u", dia, mes, año);
-			WriteLCDMsg(&handlerLCD, bufferMsg);
-
-			//Ubicamos el cursor
-			MoveLCDCursor(&handlerLCD, 3, 0);
-
-			sprintf(bufferMsg, "Dia -> %s",bufferDiaSemana);
-			WriteLCDMsg(&handlerLCD, bufferMsg);
-
-			/*Enviamos cual es el formato del RTC*/
-			//Ubicamos el cursor
-			MoveLCDCursor(&handlerLCD, 4, 0);
-
-			if(handlerRTC.formatoHora == RTC_FORMATO_12HORAS){
-				WriteLCDMsg(&handlerLCD, "Formato 12hrs");
-			}
-			else{
-				WriteLCDMsg(&handlerLCD, "Formato 24hrs");
-			}
-
-			//Bajamos la bandera de muestreo
-			flagRefresco =0;
-		}
+//		/*Ahora, enviamos dichos datos a la LCD*/
+//		if(flagRefresco){
+//			//los valores se actualizan solo cada vez que el timer lo indica
+//
+//			/*Primero mostramos la hora*/
+//			//Ubicamos el cursor
+//			MoveLCDCursor(&handlerLCD, 1, 0);
+//
+//			if(handlerRTC.formatoHora == RTC_FORMATO_12HORAS){
+//				/*Enviamos los datos de la hora*/
+//				if (handlerRTC.am_pm == 0) {
+//					sprintf(bufferMsg, "Hora -> %u:%u:%u %s", hora, minutos, segundos, "am");
+//					WriteLCDMsg(&handlerLCD, bufferMsg);
+//
+//				} else {
+//					sprintf(bufferMsg, "Hora -> %u:%u:%u %s", hora, minutos, segundos, "pm");
+//					WriteLCDMsg(&handlerLCD, bufferMsg);
+//				}
+//			}
+//			else{
+//				sprintf(bufferMsg, "Hora -> %u:%u:%u", hora, minutos, segundos);
+//				WriteLCDMsg(&handlerLCD, bufferMsg);
+//			}
+//
+//			/*Ahora, enviamos los datos de la fecha*/
+//			//Ubicamos el cursor
+//			MoveLCDCursor(&handlerLCD, 2, 0);
+//
+//			StringDiaSemana(diaSemana);
+//
+//			sprintf(bufferMsg, "Fecha -> %u %u %u", dia, mes, año);
+//			WriteLCDMsg(&handlerLCD, bufferMsg);
+//
+//			//Ubicamos el cursor
+//			MoveLCDCursor(&handlerLCD, 3, 0);
+//
+//			sprintf(bufferMsg, "Dia -> %s",bufferDiaSemana);
+//			WriteLCDMsg(&handlerLCD, bufferMsg);
+//
+//			/*Enviamos cual es el formato del RTC*/
+//			//Ubicamos el cursor
+//			MoveLCDCursor(&handlerLCD, 4, 0);
+//
+//			if(handlerRTC.formatoHora == RTC_FORMATO_12HORAS){
+//				WriteLCDMsg(&handlerLCD, "Formato 12hrs");
+//			}
+//			else{
+//				WriteLCDMsg(&handlerLCD, "Formato 24hrs");
+//			}
+//
+//			//Bajamos la bandera de refresco
+//			flagRefresco =0;
+//		}
 
 	}
 }
@@ -691,8 +691,8 @@ void parseCommands(char *ptrRecievedMsg){
 	/*Procesamos el comando de RTC_hora*/
 	else if (strcmp(cmd, "RTC_hora") == 0){
 
-		/*Limpiamos la LCD*/
-		WriteLCDInstruction(&handlerLCD, LCD_INSTRUCTION_DISPLAY_CLEAN);
+//		/*Limpiamos la LCD*/
+//		WriteLCDInstruction(&handlerLCD, LCD_INSTRUCTION_DISPLAY_CLEAN);
 
 		if(handlerRTC.formatoHora == RTC_FORMATO_12HORAS){
 			if (strcmp(string, "am") == 0) {
@@ -720,8 +720,8 @@ void parseCommands(char *ptrRecievedMsg){
 	/*Procesamos el comando de RTC_fecha*/
 	else if (strcmp(cmd, "RTC_fecha") == 0){
 
-		/*Limpiamos la LCD*/
-		WriteLCDInstruction(&handlerLCD, LCD_INSTRUCTION_DISPLAY_CLEAN);
+//		/*Limpiamos la LCD*/
+//		WriteLCDInstruction(&handlerLCD, LCD_INSTRUCTION_DISPLAY_CLEAN);
 
 		if (strcmp(string, "lunes") == 0){
 			ConfigurarRTC_fecha(firstParameter, secondParameter, thirdParameter, LUNES);
