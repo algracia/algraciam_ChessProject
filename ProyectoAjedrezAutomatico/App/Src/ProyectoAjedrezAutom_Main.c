@@ -21,7 +21,7 @@
 /*Macros utiles*/
 #define SERVO_ARRIBA 		0
 #define SERVO_ABAJO 		1
-#define PASOS_SERVO			37
+#define PASOS_SERVO			40
 #define PASOSxCUADRO 		500
 #define CAPTURA_NORMAL		0
 #define CAPTURA_INVERTIDA	1
