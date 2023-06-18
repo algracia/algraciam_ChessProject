@@ -209,8 +209,13 @@ def get_move(depth,san):
 
 	#Ahora, ingresamos la jugada del engine
 	IngresoJugadas(jugadaEng)
+
+	if board.is_game_over():
+		engine.quit() 
+		ser.close()
     
-	return jugadaEng
+	else:
+		return jugadaEng
 
 
 if __name__ == '__main__':

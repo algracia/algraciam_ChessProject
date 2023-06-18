@@ -59,15 +59,42 @@
                         </div>
                         <div id="controls">
                             <form class="form-inline">
-                                <button type="button" class="btn btn-default" id="backBtn" onclick="takeBack()";>Take Back</button>
-                                <button type="button" class="btn btn-default" id="reset" onclick="newGame()";>New Game</button>
                                 <select class="form-control" id="sel1">
-                                    <option value="5">Depth: 5</option>
-                                    <option value="4">Depth: 4</option>
-                                    <option value="3">Depth: 3</option>
-                                    <option value="2">Depth: 2</option>
-                                    <option value="1">Depth: 1</option>
+                                    <option value="Eng">Juega con el Engine</option>
+                                    <option value="Usr2">Juega con otro usuario</option>
                                 </select>
+                                <button type="button" class="btn btn-default" id="reset" onclick="newGame()";>New Game</button>
+                                <select class="form-control" id="sel2">
+                                    <option value="B">Color: B</option>
+                                    <option value="N">Color: N</option>
+                                </select>
+
+                                <select class="form-control" id="sel3">
+                                    <option value="1500">Elo: 1500</option>
+                                    <option value="1450">Elo: 1450</option>
+                                    <option value="1400">Elo: 1400</option>
+                                    <option value="1350">Elo: 1350</option>
+                                    <option value="1300">Elo: 1300</option>
+                                    <option value="1250">Elo: 1250</option>
+                                    <option value="1200">Elo: 1200</option>
+                                    <option value="1150">Elo: 1150</option>
+                                    <option value="1100">Elo: 1100</option>
+                                    <option value="1050">Elo: 1050</option>
+                                    <option value="1000">Elo: 1000</option>
+                                    <option value="950">Elo: 950</option>
+                                    <option value="900">Elo: 900</option>
+                                    <option value="850">Elo: 850</option>
+                                    <option value="800">Elo: 800</option>
+                                    <option value="750">Elo: 750</option>
+                                    <option value="700">Elo: 700</option>
+                                    <option value="650">Elo: 650</option>
+                                    <option value="600">Elo: 600</option>
+                                    <option value="550">Elo: 550</option>
+                                    <option value="500">Elo: 500</option>
+                                </select>
+                                <button type="button" class="btn btn-default" id="backBtn" onclick="takeBack()";>UndoMove</button>
+                                <button type="button" class="btn btn-default" id="redoBtn";>RedoMove</button>
+
                             </form>
                         </div>
                     </div>
