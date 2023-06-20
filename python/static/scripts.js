@@ -84,18 +84,9 @@ var cfg = {
 };
 
 var getResponseMove = function () {
-  var depthElement = document.getElementById("sel3");
-  var depth = depthElement.options[depthElement.selectedIndex].value;
-
-  var typeGameElement = document.getElementById("sel1");
-  var typeGame = typeGameElement.options[typeGameElement.selectedIndex].value;
-
-  var colorElement = document.getElementById("sel2");
-  var color = colorElement.options[colorElement.selectedIndex].value;
-
   fen = game.fen();
   san = game.history().slice(-1);
-  $.get($SCRIPT_ROOT + "/move/" + typeGame + "/" + color + "/"+ depth + "/" + san, function (data) {
+  $.get($SCRIPT_ROOT + "/move/" + san, function (data) {
     game.move(data, { sloppy: true });
     updateStatus();
     // This is terrible and I should feel bad. Find some way to fix this properly.
@@ -173,12 +164,45 @@ var takeBack = function () {
     game.undo();
   }
   board.position(game.fen());
+  $.get($SCRIPT_ROOT + "/move/" + "UNDO", function (data) {});
   updateStatus();
+};
+var reDo = function () {
+  $.get($SCRIPT_ROOT + "/move/" + "REDO", function (data) {
+    game.move(data, { sloppy: true });
+    updateStatus();
+    // This is terrible and I should feel bad. Find some way to fix this properly.
+    // The animations would stutter when moves were returned too quick, so I added a 100ms delay before the animation
+    setTimeout(function () {
+      board.position(game.fen());
+    }, 100);
+  });
 };
 
 var newGame = function () {
   game.reset();
   board.start();
+  var depthElement = document.getElementById("sel3");
+  var depth = depthElement.options[depthElement.selectedIndex].value;
+
+  var typeGameElement = document.getElementById("sel1");
+  var typeGame = typeGameElement.options[typeGameElement.selectedIndex].value;
+
+  var colorElement = document.getElementById("sel2");
+  var color = colorElement.options[colorElement.selectedIndex].value;
+
+  $.get(
+    $SCRIPT_ROOT + "/config/" + typeGame + "/" + color + "/" + depth,
+    function (data) {
+      game.move(data, { sloppy: true });
+      updateStatus();
+      // This is terrible and I should feel bad. Find some way to fix this properly.
+      // The animations would stutter when moves were returned too quick, so I added a 100ms delay before the animation
+      setTimeout(function () {
+        board.position(game.fen());
+      }, 100);
+    }
+  );
   updateStatus();
 };
 
