@@ -155,8 +155,8 @@ print(board)
 def index():
     return render_template("index.html")
 
-@app.route('/move/<typeGame>/<color>/<int:elo>/<san>')
-def get_move(typeGame, color, elo, san):
+@app.route('/move/<san>')
+def get_move(san):
     
 	print(typeGame, color, elo, san)
 
