@@ -121,7 +121,7 @@ def IngresoJugadas(jugadaUsr):
 
 	except:
 		print('Movimiento invalido. Por favor ingrese un movimiento valido')
-		return
+		return ""
 
 	#Revisamos si la jugada es de captura o enroque
 	revision = funcionesEspeciales(jugadaUsr,jugadaUsuario)
@@ -139,83 +139,155 @@ def IngresoJugadas(jugadaUsr):
 	#Le damos cierto tiempo para que el tablero se mueva
 	DelayEjecucion(revision)
 
-
-
-#Ingresa parametros
-input('\nPresione "ENTER" para iniciar')
-	
-#Seleccionamos la dificultad del engine
-elo = input('Ingrese la dificultad en puntos Elo (500 - 1500): ')
-
-while True:
-	try:
-		if (int(elo) > 1500) or (int(elo) < 500):
-			elo = input('Ingrese un valor valido (500 - 1500): ')
-		else:
-			break
-	except:
-		elo = input('Ingrese un valor valido (500 - 1500): ')	
-
-
-#Llama y configura al Engine
-engine = chess.engine.SimpleEngine.popen_uci('/usr/games/stockfish')
-engine.configure({'UCI_LimitStrength': int(elo)})
-limit = chess.engine.Limit(time=0.1)	
-
-#Seleccionamos el lado con el que queremos jugar
-side = input('Seleccione el color con el que quiere jugar (b/n): ')
-
-while (side != 'n') and (side != 'b'):
-	side = input('Ingrese un valor valido (b/n): ')
-
-#Le informamos al stm que el juego va a iniciar
-ser.write(b' ')
-
-#configura el tablero 
-board = chess.Board()
-
-#Muestra el tablero inicial
-print(board) 
-
-#Configuramos el primer movimiento segun el color que escogio el usuario
-if side == 'n':
-
-	#En este caso, si el usuario 1 (el del servidor) seleccionó negras, entonces,
-	#la primera jugada sera por parte del segundo usuario.
-
-	#De momento, el segundo usuario será el engine
-
-	time.sleep(2)
-
-	#Le pedimos al engine que nos devuelva la jugada
-	jugadaEng = CalculoEngine(board,limit)
-
-	#Enviamos la juagada al STM
-	IngresoJugadas(jugadaEng)
-
 @app.route('/')
 def index():
     return render_template("index.html")
 
+#Ingresa parametros
+@app.route('/config/<typeGameParam>/<colorParam>/<int:eloParam>')
+def set_config(typeGameParam, colorParam, eloParam):
+	global typeGame, color, engine, limit,board
+	typeGame = typeGameParam 
+	color = colorParam
+	elo = eloParam
 
-@app.route('/move/<int:depth>/<san>')
-def get_move(depth,san):
-    
-	#Primero enviamos la jugada del usuario al STM
-	IngresoJugadas(san)
+	#Llama y configura al Engine
+	engine = chess.engine.SimpleEngine.popen_uci('/usr/games/stockfish')
+	engine.configure({'UCI_LimitStrength': int(elo)})
+	limit = chess.engine.Limit(time=0.1)
 
-	#Posterior a eso, recivimos la jugada el engine
-	jugadaEng = CalculoEngine(board,limit)
+	#Le informamos al stm que el juego va a iniciar
+	ser.write(b' ')
 
-	#Ahora, ingresamos la jugada del engine
-	IngresoJugadas(jugadaEng)
+	#configura el tablero 
+	board = chess.Board()
 
-	if board.is_game_over():
-		engine.quit() 
-		ser.close()
-    
+	#Muestra el tablero inicial
+	print(board) 
+
+	#Aplicamos un pequeño delay en el codigo
+	time.sleep(2)
+
+	if (typeGame == "Eng"):
+		if (color == "N"):
+			#Posterior a eso, recibimos la jugada el engine
+			jugadaEng = CalculoEngine(board, limit)
+
+			#Ahora, ingresamos la jugada del engine
+			IngresoJugadas(jugadaEng)
+			return jugadaEng
+		
+		else:
+			return ""
 	else:
-		return jugadaEng
+		return ""
+
+
+@app.route('/move/<san>')
+def get_move(san):
+
+	print("Si entra a la funcion")
+
+	if(san == "UNDO"):
+
+		global undoUCI
+
+		try:
+			undoUCI = board.peek().uci()
+		except:
+			print('No hay jugadas previas')
+			return ""
+
+
+		print("La jugada anterior en UCI fue: " ,undoUCI)
+
+		#Regresamos el tablero a un estado anterior
+		board.pop()
+		if board.is_check():
+			print('JAQUE')
+
+		print(board)
+
+		#Convertimos la jugada hecha en notacion san
+		undoMove = chess.Move.from_uci(undoUCI)
+
+		jugadaAnterior = undoUCI[2:4] + undoUCI[:2] 
+
+		#Revisamos si la jugada es de captura o enroque y configuramos
+		revision = funcionesEspeciales(undoMove,jugadaAnterior)
+
+
+		#Enviamos los datos al stm
+		EnviarDatos(revision + '-')
+
+		#Le damos cierto tiempo para que el tablero se mueva
+		DelayEjecucion(revision)
+
+		return ""
+
+
+	elif (san == "REDO"):
+		print(undoUCI)
+		try:
+			redoUCI = undoUCI
+
+			#Convertimos la jugada hecha en notacion san
+			redoMove = board.san(chess.Move.from_uci(redoUCI))
+
+			#Ingresamos la jugada al tablero
+			board.push(chess.Move.from_uci(redoUCI))
+
+			print("La jugada que se va a rehacer es: ",redoUCI)
+			if board.is_check(): 
+				print('JAQUE')
+
+			print(board)
+
+			#Revisamos si la jugada es de captura o enroque
+			revision = funcionesEspeciales(redoMove,redoUCI)
+
+			EnviarDatos(revision)
+
+			#Le damos cierto tiempo para que el tablero se mueva
+			DelayEjecucion(revision)
+
+			return redoMove
+
+		except:
+			print('\nNo es posible rehacer el movimiento')
+			return ""
+
+
+	else:
+
+		if (typeGame == "Eng"):
+			#Primero enviamos la jugada del usuario al STM
+			IngresoJugadas(san)
+
+			#Posterior a eso, recivimos la jugada el engine
+			jugadaEng = CalculoEngine(board,limit)
+
+			#Ahora, ingresamos la jugada del engine
+			IngresoJugadas(jugadaEng)
+
+			if board.is_game_over():
+				engine.quit() 
+				ser.close()
+				print("\nFin del juego")
+
+			print(jugadaEng)	
+			return jugadaEng
+		
+		else:
+			#enviamos la jugada de cada usuario al STM
+			IngresoJugadas(san)
+
+			if board.is_game_over():
+				engine.quit() 
+				ser.close()
+				print("\nFin del juego")
+				
+			return ""
 
 
 if __name__ == '__main__':

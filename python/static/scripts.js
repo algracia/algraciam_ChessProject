@@ -160,13 +160,14 @@ var setStatus = function (status) {
 
 var takeBack = function () {
   game.undo();
-  if (game.turn() != "w") {
-    game.undo();
-  }
+  // if (game.turn() != "w") {
+  //   game.undo();
+  // }
   board.position(game.fen());
   $.get($SCRIPT_ROOT + "/move/" + "UNDO", function (data) {});
   updateStatus();
 };
+
 var reDo = function () {
   $.get($SCRIPT_ROOT + "/move/" + "REDO", function (data) {
     game.move(data, { sloppy: true });
