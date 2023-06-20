@@ -140,83 +140,38 @@ def IngresoJugadas(jugadaUsr):
 	#DelayEjecucion(revision)
 
 
-
-#Ingresa parametros
-input('\nPresione "ENTER" para iniciar')
-	
-#Seleccionamos la dificultad del engine
-elo = input('Ingrese la dificultad en puntos Elo (500 - 1500): ')
-
-while True:
-	try:
-		if (int(elo) > 1500) or (int(elo) < 500):
-			elo = input('Ingrese un valor valido (500 - 1500): ')
-		else:
-			break
-	except:
-		elo = input('Ingrese un valor valido (500 - 1500): ')	
-
-
-#Llama y configura al Engine
-engine = chess.engine.SimpleEngine.popen_uci('/usr/games/stockfish')
-engine.configure({'UCI_LimitStrength': int(elo)})
-limit = chess.engine.Limit(time=0.1)	
-
-#Seleccionamos el lado con el que queremos jugar
-side = input('Seleccione el color con el que quiere jugar (b/n): ')
-
-while (side != 'n') and (side != 'b'):
-	side = input('Ingrese un valor valido (b/n): ')
-
-# #Le informamos al stm que el juego va a iniciar
-# ser.write(b' ')
-
 #configura el tablero 
 board = chess.Board()
+engine = None
 
 #Muestra el tablero inicial
 print(board) 
-
-#Configuramos el primer movimiento segun el color que escogio el usuario
-if side == 'n':
-
-	#En este caso, si el usuario 1 (el del servidor) seleccionó negras, entonces,
-	#la primera jugada sera por parte del segundo usuario.
-
-	#De momento, el segundo usuario será el engine
-
-	time.sleep(2)
-
-	#Le pedimos al engine que nos devuelva la jugada
-	jugadaEng = CalculoEngine(board,limit)
-
-	#Enviamos la juagada al STM
-	IngresoJugadas(jugadaEng)
 
 @app.route('/')
 def index():
     return render_template("index.html")
 
 
-@app.route('/move/<int:depth>/<san>')
-def get_move(depth,san):
+@app.route('/move/<typeGame>/<color>/<int:elo>/<san>')
+def get_move(typeGame, color, elo, san):
     
+	print(typeGame, color, elo, san)
 	#Primero enviamos la jugada del usuario al STM
 	#IngresoJugadas(san)
 
 	#Posterior a eso, recivimos la jugada el engine
-	jugadaEng = CalculoEngine(board,limit)
-
+	#jugadaEng = CalculoEngine(board, elo)
+	jugadaEng = "Nc6"
 	#Ahora, ingresamos la jugada del engine
 	#IngresoJugadas(jugadaEng)
 
 	if board.is_game_over():
 		engine.quit() 
 		#ser.close()
-    
+		return jugadaEng
 	else:
 		return jugadaEng
-
+	
 
 if __name__ == '__main__':
     app.run(debug=True, host = "0.0.0.0")

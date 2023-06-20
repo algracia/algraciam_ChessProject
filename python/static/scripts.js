@@ -84,11 +84,18 @@ var cfg = {
 };
 
 var getResponseMove = function () {
-  var e = document.getElementById("sel1");
-  var depth = e.options[e.selectedIndex].value;
+  var depthElement = document.getElementById("sel3");
+  var depth = depthElement.options[depthElement.selectedIndex].value;
+
+  var typeGameElement = document.getElementById("sel1");
+  var typeGame = typeGameElement.options[typeGameElement.selectedIndex].value;
+
+  var colorElement = document.getElementById("sel2");
+  var color = colorElement.options[colorElement.selectedIndex].value;
+
   fen = game.fen();
   san = game.history().slice(-1);
-  $.get($SCRIPT_ROOT + "/move/" + depth + "/" + san, function (data) {
+  $.get($SCRIPT_ROOT + "/move/" + typeGame + "/" + color + "/"+ depth + "/" + san, function (data) {
     game.move(data, { sloppy: true });
     updateStatus();
     // This is terrible and I should feel bad. Find some way to fix this properly.
