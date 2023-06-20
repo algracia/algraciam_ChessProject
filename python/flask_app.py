@@ -144,6 +144,10 @@ def IngresoJugadas(jugadaUsr):
 board = chess.Board()
 engine = None
 
+typeGame = "Eng"
+color = "B"
+elo = "1500"
+
 #Muestra el tablero inicial
 print(board) 
 
@@ -151,11 +155,11 @@ print(board)
 def index():
     return render_template("index.html")
 
-
 @app.route('/move/<typeGame>/<color>/<int:elo>/<san>')
 def get_move(typeGame, color, elo, san):
     
 	print(typeGame, color, elo, san)
+
 	#Primero enviamos la jugada del usuario al STM
 	#IngresoJugadas(san)
 
@@ -171,7 +175,27 @@ def get_move(typeGame, color, elo, san):
 		return jugadaEng
 	else:
 		return jugadaEng
-	
+
+@app.route('/config/<typeGameParam>/<colorParam>/<int:eloParam>')
+def set_config(typeGameParam, colorParam, eloParam):
+	global typeGame, color, elo, engine
+	typeGame = typeGameParam 
+	color = colorParam
+	elo = eloParam
+
+	#Llama y configura al Engine
+	engine = chess.engine.SimpleEngine.popen_uci('/usr/games/stockfish')
+	engine.configure({'UCI_LimitStrength': int(elo)})
+	limit = chess.engine.Limit(time=0.1)
+
+	if (typeGame == "Eng"):
+		if (color == "N"):
+			#Posterior a eso, recivimos la jugada el engine
+			jugadaEng = CalculoEngine(board, elo)
+			#Ahora, ingresamos la jugada del engine
+			IngresoJugadas(jugadaEng)
+			return ""
+
 
 if __name__ == '__main__':
     app.run(debug=True, host = "0.0.0.0")
